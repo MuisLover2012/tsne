@@ -1,6 +1,6 @@
 # Grass Court Rally
 
-A tennis game for your phone. Play one short set (first to 4 games, win by two) against a computer opponent on a grass court.
+A 2.5D pixel-art tennis game for your phone. Play one short set (first to 4 games, win by two) against a computer opponent on a grass court.
 
 Open `index.html` in a phone browser. It's a single file with no build step and no dependencies.
 

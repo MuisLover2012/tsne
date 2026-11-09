@@ -3,42 +3,35 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#2b5a2b">
+<meta name="theme-color" content="#356e2c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Grass Court Rally</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Inter:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Silkscreen:wght@400;700&display=swap">
 <style>
-/* Layout: one full-screen grass court seen from a high broadcast camera; a manual scoreboard pinned top-left, umpire calls over the court, menus as scoreboard-style cards. Single committed look (summer grass), no theme switch. */
+/* Layout: a low-res pixel buffer (about 200px wide) scaled up by whole numbers to fill the phone; a chunky pixel scoreboard pinned top-left; menus as hard-edged pixel panels. Single committed look (16-bit summer grass), no theme switch. */
 :root {
-  --grass-a: #3f7f3a;
-  --grass-b: #4a8c43;
-  --grass-worn: #9a8a52;
-  --surround: #2b5a2b;
-  --wall: #143822;
-  --chalk: #f6f6ef;
-  --board: #0f2c1b;
-  --board-line: #2d5a3c;
-  --board-ink: #e8f1e2;
-  --board-dim: #9cb7a2;
-  --ball: #dcef45;
-  --ball-ink: #1b2a0c;
-  --kit-trim-p: #dcef45;
-  --kit-trim-c: #6b3fa0;
-  --skin: #d9a77c;
-  --skin-c: #8a5a3c;
-  --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
-  --body: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ink: #1b1e2b;
+  --surround: #356e2c;
+  --panel: #213a2c;
+  --panel-edge: #4f7d5c;
+  --panel-ink: #f2f0e5;
+  --panel-dim: #a9c4ae;
+  --ball: #e3f04a;
+  --ball-ink: #1b1e2b;
+  --chalk: #f2f2ea;
+  --display: "Pixelify Sans", "Silkscreen", ui-monospace, monospace;
+  --label: "Silkscreen", "Pixelify Sans", ui-monospace, monospace;
   color-scheme: dark;
 }
 html, body { height: 100%; margin: 0; }
 [hidden] { display: none !important; }
 body {
   background: var(--surround);
-  color: var(--board-ink);
-  font-family: var(--body);
+  color: var(--panel-ink);
+  font-family: var(--display);
   overflow: hidden;
   overscroll-behavior: none;
   touch-action: none;
@@ -46,7 +39,10 @@ body {
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
-#court { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+#court {
+  position: fixed; top: 0; left: 0; display: block; touch-action: none;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+}
 
 #hud {
   position: fixed; inset: 0; pointer-events: none;
@@ -58,34 +54,34 @@ body {
 .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 
 #board {
-  background: var(--board);
-  border: 2px solid var(--board-line);
-  border-radius: 6px;
-  padding: 4px 10px 6px;
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  outline: 3px solid var(--panel-edge); outline-offset: -6px;
+  padding: 7px 12px 8px;
   display: grid;
-  grid-template-columns: 12px 3.4em 2.2em 2.6em;
+  grid-template-columns: 10px 3.2em 2.4em 2.4em;
   column-gap: 6px;
   align-items: center;
-  font-family: var(--display);
-  text-transform: uppercase;
   font-variant-numeric: tabular-nums;
-  box-shadow: 0 4px 14px rgb(0 0 0 / .35);
+  box-shadow: 4px 4px 0 rgb(0 0 0 / .45);
 }
-#board .lab { font-size: 11px; letter-spacing: .12em; color: var(--board-dim); text-align: center; font-weight: 500; }
-#board .name { font-size: 20px; font-weight: 700; letter-spacing: .04em; }
-#board .num { font-size: 24px; font-weight: 700; text-align: center; }
+#board .lab { font-family: var(--label); font-size: 9px; letter-spacing: .06em; color: var(--panel-dim); text-align: center; text-transform: uppercase; }
+#board .name { font-family: var(--label); font-size: 15px; font-weight: 700; text-transform: uppercase; }
+#board .num { font-family: var(--display); font-size: 22px; font-weight: 700; text-align: center; line-height: 1.1; }
 #board .pt { color: var(--ball); }
-#board .srv { width: 9px; height: 9px; border-radius: 50%; background: var(--ball); visibility: hidden; }
+#board .srv { width: 8px; height: 8px; background: var(--ball); box-shadow: 2px 2px 0 var(--ink); visibility: hidden; }
 #board .srv.on { visibility: visible; }
 
 #pauseBtn {
   pointer-events: auto;
-  width: 44px; height: 44px; border-radius: 50%;
-  border: 2px solid var(--board-line);
-  background: var(--board); color: var(--board-ink);
+  width: 44px; height: 44px;
+  border: 3px solid var(--ink);
+  background: var(--panel); color: var(--panel-ink);
   display: grid; place-items: center; cursor: pointer;
+  box-shadow: 3px 3px 0 rgb(0 0 0 / .45);
 }
-#pauseBtn svg { width: 16px; height: 16px; fill: currentColor; }
+#pauseBtn svg { width: 14px; height: 14px; fill: currentColor; shape-rendering: crispEdges; }
+#pauseBtn:active { transform: translate(3px, 3px); box-shadow: none; }
 #pauseBtn:focus-visible, button:focus-visible { outline: 3px solid var(--ball); outline-offset: 2px; }
 
 #call {
@@ -93,27 +89,30 @@ body {
   text-align: center; pointer-events: none;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  opacity: 0; transform: translateY(8px) scale(.96);
-  transition: opacity .18s ease, transform .18s ease;
+  opacity: 0; transform: translateY(6px);
+  transition: opacity .12s steps(2), transform .12s steps(2);
 }
 #call.show { opacity: 1; transform: none; }
 #callBig {
   font-family: var(--display); font-weight: 700; text-transform: uppercase;
-  font-size: clamp(44px, 14vw, 76px); line-height: 1; letter-spacing: .03em;
-  color: var(--chalk); text-shadow: 0 3px 0 rgb(0 0 0 / .35), 0 0 24px rgb(0 0 0 / .35);
+  font-size: clamp(44px, 15vw, 80px); line-height: 1; letter-spacing: .02em;
+  color: var(--chalk);
+  text-shadow: 4px 4px 0 var(--ink), -2px -2px 0 var(--ink), 2px -2px 0 var(--ink), -2px 2px 0 var(--ink);
 }
 #callBig.good { color: var(--ball); }
 #callSmall {
-  margin-top: 6px; display: inline-block;
-  font-family: var(--display); font-weight: 500; font-size: 20px; letter-spacing: .06em; text-transform: uppercase;
-  background: var(--board); color: var(--board-ink); padding: 3px 12px; border-radius: 4px;
+  margin-top: 10px; display: inline-block;
+  font-family: var(--label); font-size: 14px; text-transform: uppercase;
+  background: var(--panel); color: var(--panel-ink); padding: 6px 12px;
+  border: 3px solid var(--ink); box-shadow: 3px 3px 0 rgb(0 0 0 / .45);
 }
 #callSmall:empty { display: none; }
 
 #hint {
   align-self: center; text-align: center;
-  font-size: 14px; font-weight: 600; color: var(--chalk);
-  background: rgb(15 44 27 / .78); padding: 8px 14px; border-radius: 999px;
+  font-family: var(--display); font-size: 16px; font-weight: 600; color: var(--chalk);
+  background: var(--panel); padding: 8px 14px;
+  border: 3px solid var(--ink); box-shadow: 3px 3px 0 rgb(0 0 0 / .45);
   max-width: 100%;
 }
 #hint:empty { visibility: hidden; }
@@ -121,7 +120,7 @@ body {
 .overlay {
   position: fixed; inset: 0; z-index: 5;
   display: grid; place-items: center;
-  background: rgb(10 30 18 / .62);
+  background: rgb(16 28 22 / .6);
   padding-block: calc(env(safe-area-inset-top, 0px) + 16px) calc(env(safe-area-inset-bottom, 0px) + 16px);
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
@@ -130,44 +129,50 @@ body {
 }
 .card {
   width: min(380px, 100%);
-  background: var(--board); color: var(--board-ink);
-  border: 2px solid var(--board-line); border-radius: 10px;
-  padding: 22px 20px;
+  background: var(--panel); color: var(--panel-ink);
+  border: 4px solid var(--ink);
+  outline: 3px solid var(--panel-edge); outline-offset: -8px;
+  padding: 24px 22px;
   display: flex; flex-direction: column; gap: 18px;
-  box-shadow: 0 16px 40px rgb(0 0 0 / .45);
+  box-shadow: 8px 8px 0 rgb(0 0 0 / .5);
 }
-.eyebrow { font-family: var(--display); font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: var(--board-dim); font-weight: 500; }
+.eyebrow { font-family: var(--label); font-size: 11px; text-transform: uppercase; color: var(--panel-dim); }
 .card h1, .card h2 {
   margin: 0; font-family: var(--display); font-weight: 700; text-transform: uppercase;
-  letter-spacing: .02em; line-height: .95; text-wrap: balance;
+  line-height: .95; text-wrap: balance;
+  text-shadow: 3px 3px 0 var(--ink);
 }
-.card h1 { font-size: 52px; }
+.card h1 { font-size: 50px; }
 .card h1 span { color: var(--ball); }
-.card h2 { font-size: 40px; }
-.head { display: flex; flex-direction: column; gap: 6px; }
-.lede { margin: 0; font-size: 14px; color: var(--board-dim); line-height: 1.45; }
+.card h2 { font-size: 38px; }
+.head { display: flex; flex-direction: column; gap: 8px; }
+.lede { margin: 0; font-size: 16px; color: var(--panel-dim); line-height: 1.35; }
 
-.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .seg button {
-  font-family: var(--display); font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
-  padding: 10px 4px; border-radius: 6px; cursor: pointer;
-  border: 2px solid var(--board-line); background: transparent; color: var(--board-ink);
+  font-family: var(--label); font-size: 14px; font-weight: 700; text-transform: uppercase;
+  padding: 10px 4px; cursor: pointer;
+  border: 3px solid var(--ink); background: var(--panel); color: var(--panel-ink);
+  box-shadow: 0 4px 0 var(--ink);
 }
-.seg button[aria-pressed="true"] { border-color: var(--ball); color: var(--ball); }
-.seg-label { font-size: 12px; color: var(--board-dim); margin-bottom: 6px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
+.seg button[aria-pressed="true"] { background: var(--ball); color: var(--ball-ink); }
+.seg button:active { transform: translateY(4px); box-shadow: none; }
+.seg-label { font-family: var(--label); font-size: 11px; color: var(--panel-dim); margin-bottom: 8px; text-transform: uppercase; }
 
-.how { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; font-size: 14px; line-height: 1.4; }
-.how dt { font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--ball); font-size: 15px; }
-.how dd { margin: 0; color: var(--board-ink); }
+.how { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; font-size: 16px; line-height: 1.3; }
+.how dt { font-family: var(--label); font-weight: 700; text-transform: uppercase; color: var(--ball); font-size: 12px; padding-top: 3px; }
+.how dd { margin: 0; color: var(--panel-ink); }
 
-.actions { display: flex; flex-direction: column; gap: 8px; }
+.actions { display: flex; flex-direction: column; gap: 12px; }
 .btn {
-  font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: .08em; text-transform: uppercase;
-  padding: 12px 16px; border-radius: 8px; cursor: pointer;
-  border: 2px solid var(--board-line); background: transparent; color: var(--board-ink);
+  font-family: var(--display); font-weight: 700; font-size: 24px; text-transform: uppercase;
+  padding: 10px 16px; cursor: pointer;
+  border: 3px solid var(--ink); background: var(--panel); color: var(--panel-ink);
+  box-shadow: 0 5px 0 var(--ink);
 }
-.btn.primary { background: var(--ball); color: var(--ball-ink); border-color: var(--ball); }
-.final { font-family: var(--display); font-size: 64px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.btn.primary { background: var(--ball); color: var(--ball-ink); }
+.btn:active { transform: translateY(5px); box-shadow: none; }
+.final { font-family: var(--display); font-size: 72px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; text-shadow: 4px 4px 0 var(--ink); }
 
 @media (prefers-reduced-motion: reduce) {
   #call { transition: none; transform: none; }
@@ -185,7 +190,7 @@ body {
       <span class="srv" id="srvP"></span><span class="name">You</span><span class="num" id="gP">0</span><span class="num pt" id="ptP">0</span>
       <span class="srv" id="srvC"></span><span class="name">CPU</span><span class="num" id="gC">0</span><span class="num pt" id="ptC">0</span>
     </div>
-    <button id="pauseBtn" type="button" aria-label="Pause"><svg viewBox="0 0 16 16"><rect x="2" y="1" width="4" height="14" rx="1"/><rect x="10" y="1" width="4" height="14" rx="1"/></svg></button>
+    <button id="pauseBtn" type="button" aria-label="Pause"><svg viewBox="0 0 14 14"><rect x="2" y="1" width="3" height="12"/><rect x="9" y="1" width="3" height="12"/></svg></button>
   </div>
   <div id="hint"></div>
 </div>
@@ -247,8 +252,10 @@ body {
 // ---------- Court geometry (metres, ITF dimensions) ----------
 const L = 23.77, HW = 4.115, DHW = 5.485, NET_Y = L / 2, SVC = 6.40;
 const NET_C = 0.914, NET_P = 1.07, POST_X = DHW + 0.914, G = 9.8;
-const CAM_Y = 18;               // camera distance behind near baseline
-let CAM_H = 28, F = 500, HY = 0, CX = 0, W = 0, H = 0, DPR = 1;
+const WALL_Y = L + 6.5;
+const CAM_Y = 36;               // camera distance behind near baseline: long lens, mild perspective
+let CAM_H = 40, F = 500, HY = 0, CX = 0;
+let W = 0, H = 0, VW = 200, VH = 400, SCALE = 2, OFFX = 0, OFFY = 0;
 
 const DIFFS = [
   { name: 'Easy', speed: 4.3, react: 0.32, miss: 0.55, err: 0.16, pace: 14, serve: 15, aim: 0.25, marker: true },
@@ -257,50 +264,223 @@ const DIFFS = [
 ];
 const P_SPEED = 7.6, P_REACH = 1.5, C_REACH = 1.35;
 
+// ---------- Pixel palette (the art's whole colour set) ----------
+const PAL = {
+  k: '#1b1e2b', w: '#f2f0e5', W: '#b9b5a6',
+  s: '#f0b98d', S: '#c4835e', d: '#9a5b3a', D: '#6b3a22',
+  h: '#6b4226', H: '#3e2614', n: '#2a1f1a',
+  y: '#e3f04a', Y: '#9fb22a', p: '#7a4bc0', P: '#4f2d86',
+  f: '#d64545', F: '#3a7bd5', g: '#e6e6e0',
+  ga: '#4e9a3c', gb: '#5aaa46', sur: '#356e2c', worn1: '#a99158', worn2: '#8a7444',
+  chalk: '#f2f2ea', wall: '#183b2a', wallLine: '#3f7a52', stands: '#2a2238', seat: '#3a3150',
+};
+const CROWD_SHIRTS = ['#d64545', '#3a7bd5', '#e3c34a', '#f2f0e5', '#7a4bc0', '#e07b39', '#4ea86b', '#f28bb1'];
+const CROWD_SKIN = ['#f0b98d', '#c4835e', '#9a5b3a', '#6b3a22'];
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+
+// Sprite maps: back view for you, front view for the CPU. Legs and arms are drawn per frame.
+const BODY_BACK = [
+  '...kkkk...',
+  '..kyyyyk..',
+  '.kyyyyyyk.',
+  '.khhhhhhk.',
+  '.kHhhhhHk.',
+  '..kssssk..',
+  '.kwwwwwwk.',
+  'kwwwwwwwwk',
+  'kwwwwwwwWk',
+  'kwwwwwwwWk',
+  '.kwwwwwWk.',
+  '.kyyyyyyk.',
+  '.kwwwwwWk.',
+  '.kwWkkWWk.',
+];
+const BODY_FRONT = [
+  '...kkkk...',
+  '..knnnnk..',
+  '.knnnnnnk.',
+  '.kppppPPk.',
+  '.kdddddDk.',
+  '.kdkddkDk.',
+  '..kdddDk..',
+  '.kwwppwwk.',
+  'kwwwwwwwWk',
+  'kwwwwwwwWk',
+  '.kwwwwwWk.',
+  '.kppppPPk.',
+  '.kwwwwwWk.',
+  '.kwWkkWWk.',
+];
+const BALL = ['.yy.', 'ywyy', 'yyyY', '.YY.'];
+
 const $ = id => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const cvs = $('court'), ctx = cvs.getContext('2d');
+const courtCv = document.createElement('canvas'), netCv = document.createElement('canvas');
 
-const css = getComputedStyle(document.documentElement);
-const C = {};
-['grass-a','grass-b','grass-worn','surround','wall','chalk','board','ball','kit-trim-p','kit-trim-c','skin','skin-c']
-  .forEach(k => C[k] = css.getPropertyValue('--' + k).trim());
+function makeSprite(rows) {
+  const c = document.createElement('canvas');
+  c.width = rows[0].length; c.height = rows.length;
+  const x = c.getContext('2d');
+  rows.forEach((r, j) => [...r].forEach((ch, i) => { if (ch !== '.') { x.fillStyle = PAL[ch]; x.fillRect(i, j, 1, 1); } }));
+  return c;
+}
+const SPR = { back: makeSprite(BODY_BACK), front: makeSprite(BODY_FRONT), ball: makeSprite(BALL) };
+
+// Racket heads: one pixel sprite per 30-degree step, built from a rotated ellipse.
+const racketCache = {};
+function racketSprite(step, frame) {
+  const key = step + frame;
+  if (racketCache[key]) return racketCache[key];
+  const a = step * Math.PI / 6, R = 5;
+  const c = document.createElement('canvas'); c.width = c.height = R * 2 + 1;
+  const x = c.getContext('2d');
+  const ux = Math.sin(a), uy = -Math.cos(a);
+  const inside = (i, j) => {
+    const v = i * ux + j * uy, u = i * -uy + j * ux;
+    return (u / 2.3) ** 2 + (v / 3.3) ** 2 <= 1;
+  };
+  for (let j = -R; j <= R; j++) for (let i = -R; i <= R; i++) {
+    if (!inside(i, j)) continue;
+    const edge = !inside(i + 1, j) || !inside(i - 1, j) || !inside(i, j + 1) || !inside(i, j - 1);
+    x.fillStyle = edge ? PAL[frame] : PAL.g;
+    x.fillRect(i + R, j + R, 1, 1);
+  }
+  return (racketCache[key] = c);
+}
 
 // ---------- State ----------
-const S = { mode: 'menu', state: 'serve', timer: 0, toss: -1, diff: 1, paused: false, sound: true, tips: 0 };
+const S = { mode: 'menu', state: 'serve', timer: 0, toss: -1, diff: 1, paused: false, sound: true, tips: 0, cheer: 0, clock: 0 };
 const M = { games: [0, 0], pts: [0, 0], server: 0, over: false, winner: -1 };
 const player = { x: 1, y: -0.7, tx: 1, ty: -0.7, swing: 0, side: 1, run: 0, moving: 0 };
 const cpu = { x: -1, y: L + 0.8, tx: -1, ty: L + 0.8, swing: 0, side: -1, run: 0, moving: 0, plan: null, react: 0 };
 const ball = { x: 0, y: 0, z: 1, vx: 0, vy: 0, vz: 0, bounces: 0, lastHitter: null, dead: true, isServe: false,
                rolling: false, land: null, landOut: false, trail: [], mark: null };
 const D = () => DIFFS[S.diff];
+let crowd = [], standsBottom = 0;
 
-// ---------- Projection ----------
+// ---------- Projection (in buffer pixels) ----------
 function proj(x, y, z) {
   const d = Math.max(0.5, y + CAM_Y);
   const s = F / d;
   return [CX + x * s, HY + (CAM_H - z) * s, s];
 }
+function pp(x, y, z) { const p = proj(x, y, z); return [Math.round(p[0]), Math.round(p[1])]; }
+
 function fit() {
-  DPR = Math.min(2, window.devicePixelRatio || 1);
   W = window.innerWidth; H = window.innerHeight;
-  cvs.width = Math.round(W * DPR); cvs.height = Math.round(H * DPR);
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  const top = $('board').getBoundingClientRect().bottom + 6;
-  const bottom = H - 52;
-  const avail = Math.max(120, bottom - top);
-  const nearD = CAM_Y - 3, farD = CAM_Y + L + 2.5, HEAD = 2.0;
+  SCALE = Math.max(2, Math.round(Math.min(W / 175, H / 260)));
+  VW = Math.floor(W / SCALE); VH = Math.floor(H / SCALE);
+  cvs.width = VW; cvs.height = VH;
+  OFFX = Math.floor((W - VW * SCALE) / 2); OFFY = Math.floor((H - VH * SCALE) / 2);
+  Object.assign(cvs.style, { width: VW * SCALE + 'px', height: VH * SCALE + 'px', left: OFFX + 'px', top: OFFY + 'px' });
+  ctx.imageSmoothingEnabled = false;
+
+  const top = Math.ceil(($('board').getBoundingClientRect().bottom - OFFY) / SCALE) + 22;
+  const bottom = VH - Math.ceil(54 / SCALE);
+  const avail = Math.max(60, bottom - top);
+  const nearD = CAM_Y - 3, farD = CAM_Y + L + 2.2, HEAD = 2.4;
   const a = 1 / nearD, b = 1 / farD;
-  F = (W - 10) / (2 * (POST_X + 0.3) / CAM_Y);
+  F = (VW - 4) / (2 * (POST_X + 0.4) / CAM_Y);
   let ch = (avail / F - HEAD * b) / (a - b);
-  ch = clamp(ch, 6, 40);
+  ch = clamp(ch, 6, 70);
   CAM_H = ch;
   const span = F * (ch * a - (ch - HEAD) * b);
   if (span > avail) F *= avail / span;
   const ySpan = F * (ch * a - (ch - HEAD) * b);
   HY = top + (avail - ySpan) / 2 - (ch - HEAD) * b * F;
-  CX = W / 2;
+  CX = VW / 2;
+  bakeCourt(); bakeNet(); seatCrowd();
+}
+
+// ---------- Baked layers ----------
+function hex(c) { return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]; }
+const shadeOf = rgb => rgb.map(v => Math.round(v * 0.8));
+const RGB = {};
+Object.keys(PAL).forEach(k => RGB[k] = hex(PAL[k]));
+const VLINES = [[-DHW, 0, L], [DHW, 0, L], [-HW, 0, L], [HW, 0, L], [0, NET_Y - SVC, NET_Y + SVC], [0, 0, 0.15], [0, L - 0.15, L]];
+const HLINES = [[0, -DHW, DHW], [L, -DHW, DHW], [NET_Y - SVC, -HW, HW], [NET_Y + SVC, -HW, HW]];
+
+function groundColor(x, y, d, px, py) {
+  const pwx = d / F, pwy = d * d / (CAM_H * F);
+  if (Math.abs(x) > DHW + 6.5) return RGB.sur;
+  const hx = Math.max(0.03, pwx * 0.5), hy = Math.max(0.03, pwy * 0.5);
+  let c = null;
+  for (const [lx, y0, y1] of VLINES) if (Math.abs(x - lx) <= hx && y >= y0 - hy && y <= y1 + hy) { c = RGB.chalk; break; }
+  if (!c) for (const [ly, x0, x1] of HLINES) if (Math.abs(y - ly) <= hy && x >= x0 - hx && x <= x1 + hx) { c = RGB.chalk; break; }
+  if (!c) {
+    const bay = BAYER[(py & 3) * 4 + (px & 3)] / 16;
+    for (const cy of [-0.5, L + 0.5]) {
+      const t = 1 - Math.hypot(x / 2.3, (y - cy) / 1.7);
+      if (t > 0) {
+        if (t * 1.5 > bay + 0.75) c = RGB.worn2;
+        else if (t * 1.5 > bay) c = RGB.worn1;
+      }
+    }
+  }
+  if (!c) c = (Math.floor((y + 22) / 2.2) % 2) ? RGB.ga : RGB.gb;
+  if (Math.abs(x) < POST_X && y > NET_Y - 1.1 && y < NET_Y) c = shadeOf(c);
+  return c;
+}
+function bakeCourt() {
+  courtCv.width = VW; courtCv.height = VH;
+  const cx = courtCv.getContext('2d');
+  const img = cx.createImageData(VW, VH), d8 = img.data;
+  const wallBot = proj(0, WALL_Y, 0)[1], wallTop = proj(0, WALL_Y, 1.6)[1];
+  standsBottom = Math.round(wallTop);
+  const lineRow = Math.round(wallTop + (wallBot - wallTop) * 0.35);
+  for (let py = 0; py < VH; py++) {
+    const sy = py + 0.5;
+    for (let px = 0; px < VW; px++) {
+      let c;
+      if (sy < wallTop) c = ((py - standsBottom) % 6 === -1 || (py - standsBottom) % 6 === 5) ? RGB.seat : RGB.stands;
+      else if (sy < wallBot) c = py === lineRow ? RGB.wallLine : RGB.wall;
+      else {
+        const d = CAM_H * F / (sy - HY);
+        c = groundColor((px + 0.5 - CX) * d / F, d - CAM_Y, d, px, py);
+      }
+      const o = (py * VW + px) * 4;
+      d8[o] = c[0]; d8[o + 1] = c[1]; d8[o + 2] = c[2]; d8[o + 3] = 255;
+    }
+  }
+  cx.putImageData(img, 0, 0);
+}
+function netHeight(x) { return NET_C + (NET_P - NET_C) * Math.min(1, Math.abs(x) / POST_X); }
+function bakeNet() {
+  netCv.width = VW; netCv.height = VH;
+  const nx = netCv.getContext('2d');
+  const s = F / (NET_Y + CAM_Y);
+  const base = Math.round(HY + CAM_H * s);
+  const postL = Math.round(CX - POST_X * s), postR = Math.round(CX + POST_X * s);
+  const centre = Math.round(CX);
+  for (let px = postL; px <= postR; px++) {
+    const x = (px + 0.5 - CX) / s;
+    const top = Math.round(HY + (CAM_H - netHeight(x)) * s);
+    for (let py = top; py < base; py++) {
+      let c = null;
+      if (py <= top + 1) c = PAL.chalk;
+      else if (px === centre) c = PAL.chalk;
+      else if ((px + py) % 2 === 0) c = PAL.k;
+      if (c) { nx.fillStyle = c; nx.fillRect(px, py, 1, 1); }
+    }
+  }
+  const pTop = Math.round(HY + (CAM_H - NET_P - 0.08) * s);
+  nx.fillStyle = PAL.k;
+  nx.fillRect(postL - 2, pTop, 2, base - pTop);
+  nx.fillRect(postR + 1, pTop, 2, base - pTop);
+}
+function seatCrowd() {
+  crowd = [];
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let row = standsBottom - 6; row > -6; row -= 6) {
+    for (let x = 1 + ((row / 6) & 1) * 2; x < VW - 2; x += 4) {
+      if (rnd() < 0.14) continue;
+      crowd.push({ x, y: row, shirt: CROWD_SHIRTS[(rnd() * CROWD_SHIRTS.length) | 0],
+                   skin: CROWD_SKIN[(rnd() * CROWD_SKIN.length) | 0], ph: (rnd() * 4) | 0 });
+    }
+  }
 }
 
 // ---------- Audio ----------
@@ -316,7 +496,7 @@ function initAudio() {
     if (AC.state === 'suspended') AC.resume();
   } catch (e) { AC = null; }
 }
-function tone(freq, dur, vol, type = 'triangle', delay = 0) {
+function tone(freq, dur, vol, type = 'square', delay = 0) {
   if (!AC || !S.sound) return;
   try {
     const t = AC.currentTime + delay;
@@ -340,11 +520,11 @@ function click(vol) {
   } catch (e) {}
 }
 const sfx = {
-  hit(near) { const v = near ? 0.9 : 0.45; click(v); tone(440, 0.07, 0.25 * v); },
-  bounce(near) { tone(170, 0.06, near ? 0.28 : 0.12, 'sine'); },
-  net() { tone(110, 0.18, 0.3, 'sawtooth'); },
-  win() { tone(660, 0.14, 0.18, 'triangle'); tone(880, 0.22, 0.18, 'triangle', 0.12); },
-  lose() { tone(330, 0.16, 0.16, 'triangle'); tone(247, 0.26, 0.16, 'triangle', 0.14); },
+  hit(near) { const v = near ? 0.8 : 0.4; click(v); tone(520, 0.06, 0.08 * v); },
+  bounce(near) { tone(160, 0.05, near ? 0.1 : 0.05, 'square'); },
+  net() { tone(90, 0.16, 0.12, 'sawtooth'); },
+  win() { tone(660, 0.1, 0.08); tone(880, 0.1, 0.08, 'square', 0.1); tone(1320, 0.18, 0.08, 'square', 0.2); },
+  lose() { tone(392, 0.12, 0.08); tone(262, 0.24, 0.08, 'square', 0.12); },
 };
 function buzz(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} }
 
@@ -402,8 +582,6 @@ function setHint() {
 }
 
 // ---------- Physics helpers ----------
-function netHeight(x) { return NET_C + (NET_P - NET_C) * Math.min(1, Math.abs(x) / POST_X); }
-
 function shoot(px, py, pz, tx, ty, speed, clear) {
   const dist = Math.hypot(tx - px, ty - py);
   let T = Math.max(0.35, dist / speed), v = null;
@@ -419,7 +597,6 @@ function shoot(px, py, pz, tx, ty, speed, clear) {
   }
   return v;
 }
-
 function predictLand() {
   const a = 0.5 * G, b = ball.vz, c = ball.z;
   const t = (b + Math.sqrt(b * b + 4 * a * c)) / (2 * a);
@@ -429,7 +606,6 @@ function isIn(x, y, side) {
   if (Math.abs(x) > HW + 0.05) return false;
   return side === 'c' ? (y >= NET_Y && y <= L + 0.05) : (y <= NET_Y && y >= -0.05);
 }
-
 function launch(who, tx, ty, pace, clear) {
   const v = shoot(ball.x, ball.y, ball.z, tx, ty, pace, clear);
   ball.vx = v.vx; ball.vy = v.vy; ball.vz = v.vz;
@@ -437,11 +613,9 @@ function launch(who, tx, ty, pace, clear) {
   ball.land = predictLand();
   ball.landOut = !isIn(ball.land.x, ball.land.y, who === 'p' ? 'c' : 'p');
   if (who === 'p') { cpu.plan = null; cpu.react = D().react; }
-  const near = who === 'p';
-  sfx.hit(near);
-  if (near) buzz(12);
+  sfx.hit(who === 'p');
+  if (who === 'p') buzz(12);
 }
-
 function planIntercept() {
   if (ball.landOut && ball.bounces === 0) return { letGo: true };
   const b = { x: ball.x, y: ball.y, z: ball.z, vx: ball.vx, vy: ball.vy, vz: ball.vz, n: ball.bounces };
@@ -469,10 +643,9 @@ function updateTarget() {
   if (!drag) return;
   if (serveLocked()) { resetDragOrigin(); return; }
   const d = player.y + CAM_Y, gain = 1.35;
-  const dx = (drag.cx - drag.sx) * d / F * gain;
-  const dy = -(drag.cy - drag.sy) * d * d / (CAM_H * F) * gain;
-  player.tx = clamp(drag.px + dx, -(DHW + 2.2), DHW + 2.2);
-  player.ty = clamp(drag.py + dy, -4, NET_Y - 0.7);
+  const dxp = (drag.cx - drag.sx) / SCALE, dyp = (drag.cy - drag.sy) / SCALE;
+  player.tx = clamp(drag.px + dxp * d / F * gain, -(DHW + 2.2), DHW + 2.2);
+  player.ty = clamp(drag.py - dyp * d * d / (CAM_H * F) * gain, -4, NET_Y - 0.7);
 }
 function swipe() {
   const now = performance.now();
@@ -485,19 +658,19 @@ function swipe() {
   if (Math.abs(ay) < 0.12) ay = 0;
   return { ax, ay };
 }
-cvs.addEventListener('pointerdown', e => {
+document.addEventListener('pointerdown', e => {
   if (S.mode !== 'play' || S.paused) return;
+  if (e.target.closest && e.target.closest('button, .overlay')) return;
   e.preventDefault();
   initAudio();
   if (S.state === 'serve' && M.server === 0 && S.toss < 0) { S.toss = 0; setHint(); }
   if (!drag) {
     drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, cx: e.clientX, cy: e.clientY, px: player.tx, py: player.ty };
-    try { cvs.setPointerCapture(e.pointerId); } catch (err) {}
     samples.length = 0;
   }
   samples.push({ t: performance.now(), x: e.clientX, y: e.clientY });
-});
-cvs.addEventListener('pointermove', e => {
+}, { passive: false });
+window.addEventListener('pointermove', e => {
   if (!drag || e.pointerId !== drag.id) return;
   drag.cx = e.clientX; drag.cy = e.clientY;
   samples.push({ t: performance.now(), x: e.clientX, y: e.clientY });
@@ -505,10 +678,9 @@ cvs.addEventListener('pointermove', e => {
   updateTarget();
 });
 function endDrag(e) { if (drag && e.pointerId === drag.id) drag = null; }
-cvs.addEventListener('pointerup', endDrag);
-cvs.addEventListener('pointercancel', endDrag);
+window.addEventListener('pointerup', endDrag);
+window.addEventListener('pointercancel', endDrag);
 
-// Keyboard play for desktop: arrows move, space serves.
 const keys = {};
 window.addEventListener('keydown', e => {
   if (S.mode !== 'play' || S.paused) return;
@@ -561,9 +733,9 @@ function playerHit(dx) {
   let tx, ty, pace, clear = 0.25;
   const spread = 0.35 + 0.55 * Math.abs(sw.ax);
   tx = sw.ax * (HW - 0.3) + dx * 0.45 + rand(-0.6, 0.6) * spread;
-  if (sw.ay < -0.8) {               // hard flick down: drop shot
+  if (sw.ay < -0.8) {
     ty = NET_Y + rand(1.6, 3.2); pace = 9; tx *= 0.7; clear = 0.15;
-  } else if (player.y > NET_Y - 4.5 && ball.z > 1.6) { // overhead near the net
+  } else if (player.y > NET_Y - 4.5 && ball.z > 1.6) {
     ty = rand(L - 7, L - 3); pace = 26; clear = 0.1;
   } else {
     ty = L - 3.3 + sw.ay * 2.3 + rand(-1.3, 1.25);
@@ -589,7 +761,7 @@ function cpuHit(dx) {
   let tx, ty = rand(0.7, 5.6), pace = d.pace * rand(0.9, 1.08), clear = 0.3;
   if (Math.random() < d.aim) tx = (player.x > 0 ? -1 : 1) * rand(1.4, HW - 0.4);
   else tx = rand(-(HW - 0.6), HW - 0.6);
-  if (player.y > NET_Y - 5 && Math.random() < 0.55) { ty = rand(0.6, 2.6); pace = 8.5; clear = 2.5; } // lob
+  if (player.y > NET_Y - 5 && Math.random() < 0.55) { ty = rand(0.6, 2.6); pace = 8.5; clear = 2.5; }
   launch('c', tx, ty, pace, clear);
 }
 
@@ -604,9 +776,9 @@ function endPoint(winner, reason) {
   if (reason === 'Winner' && wi === 0 && ball.isServe) big = 'Ace';
   showCall(big, call, wi === 0);
   renderBoard(); setHint();
+  S.cheer = wi === 0 ? 1.6 : 0.6;
   if (wi === 0) sfx.win(); else sfx.lose();
 }
-
 function onBounce() {
   const side = ball.y < NET_Y ? 'p' : 'c';
   const hitter = ball.lastHitter;
@@ -622,12 +794,11 @@ function onBounce() {
     endPoint(hitter, 'Winner');
   }
 }
-
 function tryHit(who, prevY) {
   if (ball.dead || ball.lastHitter === who || !ball.lastHitter) return;
   if (ball.bounces > 1) return;
   if (ball.isServe && ball.bounces === 0) return;
-  if (ball.bounces === 0 && ball.landOut) return; // let a ball going out fly past
+  if (ball.bounces === 0 && ball.landOut) return;
   const p = who === 'p' ? player : cpu;
   const line = who === 'p' ? p.y + 0.3 : p.y - 0.3;
   const crossed = who === 'p' ? (ball.vy < 0 && prevY > line && ball.y <= line)
@@ -638,7 +809,6 @@ function tryHit(who, prevY) {
   if (ball.z > (who === 'p' ? 3.1 : 2.7)) return;
   if (who === 'p') playerHit(dx); else cpuHit(dx);
 }
-
 function physics(dt) {
   const prevY = ball.y;
   if (ball.rolling) {
@@ -663,17 +833,15 @@ function physics(dt) {
   }
   if (!ball.dead) { tryHit('p', prevY); tryHit('c', prevY); }
 }
-
 function moveToward(p, speed, dt) {
   const dx = p.tx - p.x, dy = p.ty - p.y, dist = Math.hypot(dx, dy);
   const step = speed * dt;
   if (dist <= step) { p.x = p.tx; p.y = p.ty; p.moving = Math.max(0, p.moving - dt * 4); }
   else { p.x += dx / dist * step; p.y += dy / dist * step; p.moving = Math.min(1, p.moving + dt * 6); }
-  p.run += dt * (p.moving > 0.2 ? 14 : 0);
+  p.run += dt * (p.moving > 0.2 ? 10 : 0);
 }
 
 function update(dt) {
-  // keyboard movement
   if (!serveLocked()) {
     const kx = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
     const ky = (keys.ArrowUp ? 1 : 0) - (keys.ArrowDown ? 1 : 0);
@@ -683,7 +851,6 @@ function update(dt) {
       resetDragOrigin();
     }
   }
-
   if (S.state === 'serve') {
     if (S.toss < 0) {
       holdBall();
@@ -707,8 +874,6 @@ function update(dt) {
       }
     }
   }
-
-  // CPU brain
   if (S.state === 'rally' && !ball.dead) {
     if (ball.lastHitter === 'p') {
       if (!cpu.plan) { cpu.react -= dt; if (cpu.react <= 0) cpu.plan = planIntercept(); }
@@ -722,206 +887,114 @@ function update(dt) {
   }
   if (!(S.state === 'serve' && M.server === 0)) moveToward(player, P_SPEED, dt);
   if (!(S.state === 'serve' && M.server === 1)) moveToward(cpu, D().speed, dt);
-
   player.swing = player.swing > 0 ? player.swing - dt * 3.2 : 0;
   cpu.swing = cpu.swing > 0 ? cpu.swing - dt * 3.2 : 0;
   if (ball.mark) { ball.mark.t -= dt; if (ball.mark.t <= 0) ball.mark = null; }
-
-  // trail
+  if (S.cheer > 0) S.cheer -= dt;
   if (S.state !== 'serve') {
-    ball.trail.push([ball.x, ball.y, ball.z]);
-    if (ball.trail.length > 7) ball.trail.shift();
+    ball.trail.push(pp(ball.x, ball.y, ball.z));
+    if (ball.trail.length > 4) ball.trail.shift();
   } else ball.trail.length = 0;
 }
 
-// ---------- Drawing ----------
-function poly(pts, fill) {
-  ctx.beginPath();
-  pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
-  ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
-}
-function groundRect(x0, y0, x1, y1, fill) {
-  poly([proj(x0, y0, 0), proj(x1, y0, 0), proj(x1, y1, 0), proj(x0, y1, 0)], fill);
-}
-function chalk(x0, y0, x1, y1) {
-  const far = Math.max(y0, y1) + CAM_Y;
-  const w = Math.max(0.05, 1.1 / (F / far)) / 2;
-  if (x0 === x1) groundRect(x0 - w, y0, x0 + w, y1, C.chalk);
-  else groundRect(x0, y0 - w, x1, y0 + w, C.chalk);
-}
-function wornPatch(y, side) {
-  const [sx, sy, s] = proj(0, y, 0);
-  const [, sy2] = proj(0, y + 1, 0);
-  const sq = Math.abs(sy2 - sy) / s; // vertical foreshortening
-  ctx.save();
-  ctx.translate(sx, sy); ctx.scale(1, sq);
-  const r = 3.2 * s;
-  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-  g.addColorStop(0, C['grass-worn']); g.addColorStop(0.55, C['grass-worn'] + '99'); g.addColorStop(1, C['grass-worn'] + '00');
-  ctx.globalAlpha = 0.45;
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.ellipse(0, side * 0.6 * s, r, r * 0.75, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
-}
-function drawCourt() {
-  ctx.fillStyle = C.surround; ctx.fillRect(0, 0, W, H);
-  // back wall
-  const wx = DHW + 7, wy = L + 6.5;
-  poly([proj(-wx, wy, 0), proj(wx, wy, 0), proj(wx, wy, 1.4), proj(-wx, wy, 1.4)], C.wall);
-  ctx.fillStyle = C.wall;
-  const wt = proj(0, wy, 1.4); ctx.fillRect(0, 0, W, Math.max(0, wt[1]));
-  // mown stripes
-  const x0 = -(DHW + 6), x1 = DHW + 6;
-  for (let y = -8, i = 0; y < wy; y += 2.2, i++) groundRect(x0, y, x1, Math.min(wy, y + 2.2), i % 2 ? C['grass-a'] : C['grass-b']);
-  wornPatch(-0.4, 1); wornPatch(L + 0.4, -1);
-  // lines
-  chalk(-DHW, 0, DHW, 0); chalk(-DHW, L, DHW, L);
-  chalk(-DHW, 0, -DHW, L); chalk(DHW, 0, DHW, L);
-  chalk(-HW, 0, -HW, L); chalk(HW, 0, HW, L);
-  chalk(-HW, NET_Y - SVC, HW, NET_Y - SVC); chalk(-HW, NET_Y + SVC, HW, NET_Y + SVC);
-  chalk(0, NET_Y - SVC, 0, NET_Y + SVC);
-  chalk(0, 0, 0, 0.15); chalk(0, L - 0.15, 0, L);
-}
-function drawNet() {
-  const steps = 12, top = [], base = [];
-  for (let i = 0; i <= steps; i++) {
-    const x = -POST_X + (2 * POST_X) * i / steps;
-    top.push(proj(x, NET_Y, netHeight(x))); base.push(proj(x, NET_Y, 0));
+// ---------- Pixel drawing ----------
+function rect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); }
+function pEllipse(cx, cy, rx, ry, c) {
+  ctx.fillStyle = c;
+  for (let dy = -ry; dy <= ry; dy++) {
+    const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (dy / (ry + 0.5)) ** 2)));
+    ctx.fillRect(cx - w, cy + dy, 2 * w + 1, 1);
   }
-  // shadow on grass
-  ctx.globalAlpha = 0.18;
-  poly([proj(-POST_X, NET_Y, 0), proj(POST_X, NET_Y, 0), proj(POST_X, NET_Y - 0.9, 0), proj(-POST_X, NET_Y - 0.9, 0)], '#000');
-  ctx.globalAlpha = 1;
-  // mesh body
-  ctx.beginPath();
-  top.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
-  for (let i = base.length - 1; i >= 0; i--) ctx.lineTo(base[i][0], base[i][1]);
-  ctx.closePath(); ctx.fillStyle = 'rgba(10,20,14,0.42)'; ctx.fill();
-  ctx.save(); ctx.clip();
-  ctx.strokeStyle = 'rgba(240,240,230,0.22)'; ctx.lineWidth = 1;
-  for (let x = -POST_X; x <= POST_X; x += 0.35) {
-    const a = proj(x, NET_Y, 0), b = proj(x, NET_Y, 1.2);
-    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
-  }
-  for (let z = 0.15; z < 1.1; z += 0.18) {
-    const a = proj(-POST_X, NET_Y, z), b = proj(POST_X, NET_Y, z);
-    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
-  }
-  ctx.restore();
-  // tape + centre strap
-  const s = proj(0, NET_Y, 0)[2];
-  ctx.strokeStyle = C.chalk; ctx.lineWidth = Math.max(2, 0.07 * s);
-  ctx.beginPath(); top.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
-  ctx.lineWidth = Math.max(1.5, 0.05 * s);
-  const ca = proj(0, NET_Y, 0), cb = proj(0, NET_Y, NET_C);
-  ctx.beginPath(); ctx.moveTo(ca[0], ca[1]); ctx.lineTo(cb[0], cb[1]); ctx.stroke();
-  // posts
-  ctx.strokeStyle = C.wall; ctx.lineWidth = Math.max(3, 0.1 * s);
-  [-POST_X, POST_X].forEach(x => {
-    const a = proj(x, NET_Y, 0), b = proj(x, NET_Y, NET_P + 0.05);
-    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
-  });
 }
-function drawShadow(x, y, rx, ry, alpha) {
-  const [sx, sy, s] = proj(x, y, 0);
-  ctx.globalAlpha = alpha; ctx.fillStyle = '#000';
-  ctx.beginPath(); ctx.ellipse(sx, sy, rx * s, ry * s, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.globalAlpha = 1;
+function pRing(cx, cy, rx, ry, c, dashed) {
+  ctx.fillStyle = c;
+  const n = Math.max(12, Math.round((rx + ry) * 3));
+  let lastx = null, lasty = null, k = 0;
+  for (let i = 0; i < n; i++) {
+    const a = i / n * Math.PI * 2;
+    const x = Math.round(cx + Math.cos(a) * rx), y = Math.round(cy + Math.sin(a) * ry);
+    if (x === lastx && y === lasty) continue;
+    lastx = x; lasty = y;
+    if (!dashed || (k++ % 3) < 2) ctx.fillRect(x, y, 1, 1);
+  }
+}
+function pLine(x0, y0, x1, y1, c, t) {
+  ctx.fillStyle = c;
+  const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
+  for (let i = 0; i <= n; i++) ctx.fillRect(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n), t, t);
+}
+function drawCrowd() {
+  const beat = Math.floor(S.clock * 8);
+  for (const c of crowd) {
+    const jump = S.cheer > 0 && ((c.ph + beat) & 1) ? -1 : 0;
+    rect(c.x, c.y + 1 + jump, 3, 3, c.shirt);
+    rect(c.x + 1, c.y - 1 + jump, 2, 2, c.skin);
+    if (S.cheer > 0.4 && ((c.ph + beat) & 2)) rect(c.x - 1 + (c.ph & 1) * 4, c.y - 2 + jump, 1, 2, c.skin);
+  }
+}
+function drawLegs(left, top, lift, skin) {
+  const lh = 3 - lift;
+  for (let r = 0; r < lh; r++) { rect(left, top + r, 1, 1, PAL.k); rect(left + 1, top + r, 1, 1, skin); rect(left + 2, top + r, 1, 1, PAL.k); }
+  const sy = top + lh;
+  rect(left, sy, 3, 1, PAL.k); rect(left + 1, sy, 1, 1, PAL.w);
+  rect(left, sy + 1, 4, 1, PAL.k); rect(left + 1, sy + 1, 2, 1, PAL.w);
+  rect(left, sy + 2, 4, 1, PAL.k);
 }
 function drawPlayer(p, isPlayer) {
-  const [fx, fy, s0] = proj(p.x, p.y, 0);
-  const k = s0 * 1.25;
-  const Z = z => fy - z * k;
-  const trim = isPlayer ? C['kit-trim-p'] : C['kit-trim-c'];
-  const skin = isPlayer ? C.skin : C['skin-c'];
-  const lw = Math.max(2, 0.13 * k);
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  // legs
-  const stride = Math.sin(p.run) * 0.22 * p.moving;
-  ctx.strokeStyle = skin; ctx.lineWidth = lw;
-  ctx.beginPath();
-  ctx.moveTo(fx - 0.1 * k, Z(0.85)); ctx.lineTo(fx - 0.14 * k + stride * k, Z(0.04));
-  ctx.moveTo(fx + 0.1 * k, Z(0.85)); ctx.lineTo(fx + 0.14 * k - stride * k, Z(0.04));
-  ctx.stroke();
-  // shoes
-  ctx.fillStyle = C.chalk;
-  [[-0.14 + stride, 0], [0.14 - stride, 0]].forEach(([ox]) => {
-    ctx.beginPath(); ctx.ellipse(fx + ox * k, Z(0.03), 0.09 * k, 0.05 * k, 0, 0, Math.PI * 2); ctx.fill();
-  });
-  // shorts
-  ctx.fillStyle = C.chalk;
-  ctx.beginPath(); ctx.roundRect ? ctx.roundRect(fx - 0.2 * k, Z(1.0), 0.4 * k, 0.24 * k, 0.05 * k) : ctx.rect(fx - 0.2 * k, Z(1.0), 0.4 * k, 0.24 * k); ctx.fill();
-  // torso
-  ctx.fillStyle = C.chalk;
-  ctx.beginPath(); ctx.roundRect ? ctx.roundRect(fx - 0.22 * k, Z(1.5), 0.44 * k, 0.56 * k, 0.1 * k) : ctx.rect(fx - 0.22 * k, Z(1.5), 0.44 * k, 0.56 * k); ctx.fill();
-  ctx.fillStyle = trim;
-  ctx.fillRect(fx - 0.22 * k, Z(1.02), 0.44 * k, Math.max(1.5, 0.05 * k));
-  // head
-  ctx.fillStyle = skin;
-  ctx.beginPath(); ctx.arc(fx, Z(1.66), 0.13 * k, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = trim;
-  if (isPlayer) { // cap seen from behind
-    ctx.beginPath(); ctx.arc(fx, Z(1.69), 0.135 * k, Math.PI, 0); ctx.fill();
-  } else {        // headband facing camera
-    ctx.fillRect(fx - 0.13 * k, Z(1.75), 0.26 * k, Math.max(1.5, 0.05 * k));
-  }
-  // arm + racket
+  const [fx, fy] = pp(p.x, p.y, 0);
+  const left = fx - 5, top = fy - 19;
+  pEllipse(fx, fy, 5, 1, 'rgba(0,0,0,0.3)');
+  const skin = isPlayer ? PAL.s : PAL.d;
+  const frame = p.moving > 0.2 ? Math.floor(p.run) % 4 : 0;
+  const liftL = frame === 1 ? 2 : 0, liftR = frame === 3 ? 2 : 0;
+  drawLegs(left + 1, top + 14, liftL, skin);
+  drawLegs(left + 5, top + 14, liftR, skin);
+  ctx.drawImage(isPlayer ? SPR.back : SPR.front, left, top);
+  // arm and racket, quantised to 30-degree poses
   const side = p.side;
-  const sh = [fx + side * 0.2 * k, Z(1.42)];
   const t = clamp(p.swing, 0, 1);
-  // swing: from wound back (t=1) through contact to follow-through (t=0)
-  const rest = side * 1.15;
-  const ang = t > 0 ? side * (-1.2 + 3.4 * t) : rest;
+  let ang = t > 0 ? side * (-1.2 + 3.4 * t) : side * 1.2;
+  const step = ((Math.round(ang / (Math.PI / 6)) % 12) + 12) % 12;
+  ang = step * Math.PI / 6;
   const ux = Math.sin(ang), uy = -Math.cos(ang);
-  const hand = [sh[0] + ux * 0.45 * k, sh[1] + uy * 0.45 * k * 0.8];
-  ctx.strokeStyle = skin; ctx.lineWidth = lw * 0.85;
-  ctx.beginPath(); ctx.moveTo(sh[0], sh[1]); ctx.lineTo(hand[0], hand[1]); ctx.stroke();
-  const head = [hand[0] + ux * 0.42 * k, hand[1] + uy * 0.42 * k * 0.8];
-  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = Math.max(1.5, 0.05 * k);
-  ctx.beginPath(); ctx.moveTo(hand[0], hand[1]); ctx.lineTo(hand[0] + ux * 0.22 * k, hand[1] + uy * 0.18 * k); ctx.stroke();
-  ctx.strokeStyle = trim === C.ball ? '#1d1d1d' : trim; ctx.lineWidth = Math.max(1.5, 0.045 * k);
-  ctx.fillStyle = 'rgba(255,255,255,0.18)';
-  ctx.beginPath(); ctx.ellipse(head[0], head[1], 0.13 * k, 0.17 * k, ang, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  const sx = side > 0 ? left + 8 : left + 1, sy = top + 7;
+  const hx = Math.round(sx + ux * 4), hy = Math.round(sy + uy * 4);
+  pLine(sx, sy, hx, hy, PAL.k, 2);
+  pLine(sx, sy, hx, hy, skin, 1);
+  const gx = Math.round(hx + ux * 2), gy = Math.round(hy + uy * 2);
+  pLine(hx, hy, gx, gy, PAL.k, 1);
+  const spr = racketSprite(step, isPlayer ? 'f' : 'F');
+  ctx.drawImage(spr, Math.round(hx + ux * 5.5) - 5, Math.round(hy + uy * 5.5) - 5);
 }
 function drawBall() {
-  const [sx, sy, s] = proj(ball.x, ball.y, ball.z);
-  const r = Math.max(2.6, 0.1 * s);
+  const [bx, by] = pp(ball.x, ball.y, ball.z);
   for (let i = 0; i < ball.trail.length - 1; i++) {
-    const t = ball.trail[i], p = proj(t[0], t[1], t[2]);
-    ctx.globalAlpha = 0.07 * (i + 1);
-    ctx.fillStyle = C.ball;
-    ctx.beginPath(); ctx.arc(p[0], p[1], r * 0.9, 0, Math.PI * 2); ctx.fill();
+    const [tx, ty] = ball.trail[i];
+    rect(tx - 1, ty - 1, 2, 2, i < ball.trail.length - 2 ? PAL.Y : PAL.y);
   }
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = C.ball;
-  ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.drawImage(SPR.ball, bx - 2, by - 2);
 }
 function drawMarkers() {
   if (ball.mark) {
-    const [sx, sy, s] = proj(ball.mark.x, ball.mark.y, 0);
-    ctx.strokeStyle = C.chalk; ctx.globalAlpha = Math.min(1, ball.mark.t * 1.5) * 0.8; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.ellipse(sx, sy, 0.22 * s, 0.22 * s * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.globalAlpha = 1;
+    const [mx, my] = pp(ball.mark.x, ball.mark.y, 0);
+    if (ball.mark.t > 0.2 || Math.floor(S.clock * 10) % 2) pRing(mx, my, 3, 1.5, PAL.chalk, false);
   }
   if (D().marker && S.state === 'rally' && !ball.dead && ball.lastHitter === 'c' && ball.bounces === 0 && ball.land && !ball.landOut) {
-    const [sx, sy, s] = proj(ball.land.x, ball.land.y, 0);
-    ctx.strokeStyle = C.ball; ctx.globalAlpha = 0.55; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
-    ctx.beginPath(); ctx.ellipse(sx, sy, 0.3 * s, 0.3 * s * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.setLineDash([]); ctx.globalAlpha = 1;
+    const [mx, my] = pp(ball.land.x, ball.land.y, 0);
+    pRing(mx, my, 4, 2, PAL.y, true);
   }
 }
 function render() {
-  drawCourt();
+  ctx.drawImage(courtCv, 0, 0);
+  drawCrowd();
   drawMarkers();
-  drawShadow(cpu.x, cpu.y, 0.45, 0.2, 0.25);
-  drawShadow(player.x, player.y, 0.45, 0.2, 0.25);
-  drawShadow(ball.x, ball.y, 0.09, 0.05, clamp(0.4 - ball.z * 0.08, 0.1, 0.4));
-  // depth-sorted: far to near
+  const [bsx, bsy] = pp(ball.x, ball.y, 0);
+  rect(bsx - 2, bsy, 4, 1, 'rgba(0,0,0,0.35)');
+  if (ball.z > 0.4) rect(bsx - 1, bsy - 1, 2, 1, 'rgba(0,0,0,0.25)');
   const items = [
     { y: cpu.y, f: () => drawPlayer(cpu, false) },
     { y: player.y, f: () => drawPlayer(player, true) },
-    { y: NET_Y, f: drawNet },
+    { y: NET_Y, f: () => ctx.drawImage(netCv, 0, 0) },
     { y: ball.y - 0.01, f: drawBall },
   ];
   items.sort((a, b) => b.y - a.y).forEach(it => it.f());
@@ -929,9 +1002,8 @@ function render() {
 
 // ---------- Screens ----------
 function show(id, on) { $(id).hidden = !on; }
-let wakeLock = null;
 function requestWake() {
-  try { navigator.wakeLock && navigator.wakeLock.request('screen').then(l => { wakeLock = l; }).catch(() => {}); } catch (e) {}
+  try { navigator.wakeLock && navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
 }
 function startMatch() {
   initAudio();
@@ -948,6 +1020,7 @@ function finishMatch() {
   $('endEyebrow').textContent = `${DIFFS[S.diff].name} opponent`;
   $('endTitle').textContent = won ? 'You win the set' : 'CPU takes the set';
   $('endScore').textContent = `${M.games[0]}–${M.games[1]}`;
+  if (won) S.cheer = 4;
   show('end', true); setHint();
   $('againBtn').focus();
 }
@@ -956,7 +1029,6 @@ function pauseGame() {
   S.paused = true; drag = null; show('pause', true); setHint();
 }
 function resumeGame() { S.paused = false; show('pause', false); setHint(); initAudio(); }
-
 function setDiff(d) {
   S.diff = d;
   [0, 1, 2].forEach(i => $('d' + i).setAttribute('aria-pressed', String(i === d)));
@@ -981,7 +1053,9 @@ window.addEventListener('resize', fit);
 let last = performance.now();
 function frame(t) {
   const dt = Math.min(0.033, (t - last) / 1000); last = t;
+  S.clock += dt;
   if (S.mode === 'play' && !S.paused) update(dt);
+  else if (S.cheer > 0) S.cheer -= dt;
   render();
   requestAnimationFrame(frame);
 }
@@ -989,7 +1063,6 @@ function start(data) {
   try { const d = localStorage.getItem('gcr-diff'); if (d !== null) setDiff(clamp(+d | 0, 0, 2)); } catch (e) {}
   try { if (localStorage.getItem('gcr-sound') === '0') { S.sound = false; $('soundBtn').textContent = 'Sound: off'; } } catch (e) {}
   fit();
-  // demo positions behind the menu
   Object.assign(ball, { x: 1.2, y: 9, z: 1.6, dead: true });
   player.x = 0.8; player.y = -0.6; cpu.x = -1.2; cpu.y = L + 0.8;
   if (data && data.M && data.mode === 'play') {
