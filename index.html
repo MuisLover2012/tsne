@@ -243,7 +243,10 @@ body {
 .pname { font-family: var(--label); font-size: 13px; text-transform: uppercase; overflow-wrap: anywhere; }
 .wallet { font-family: var(--label); font-size: 12px; text-transform: uppercase; text-align: right; display: grid; gap: 4px; }
 .wallet span { color: var(--ball); font-size: 16px; }
-.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.shophead { margin: 4px 0 0; font-family: var(--display); font-size: 20px; text-transform: uppercase; text-shadow: 2px 2px 0 var(--ink); }
+.swatch { width: 28px; height: 28px; border: 3px solid var(--panel-edge); }
+.hubtop { display: grid; grid-template-columns: 1fr; gap: 8px; }
 .tab { font-family: var(--label); font-size: 12px; text-transform: uppercase; padding: 8px 4px; cursor: pointer;
   border: 3px solid var(--ink); background: var(--panel); color: var(--panel-dim); }
 .tab[aria-selected="true"] { background: var(--panel-ink); color: var(--ink); }
@@ -257,6 +260,7 @@ body {
 .opp, .upg { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
   background: var(--ink); padding: 8px; border: 3px solid var(--ink); }
 .upg { grid-template-columns: 1fr auto auto; }
+.upg.shoprow { grid-template-columns: auto 1fr auto; }
 .opp.locked { opacity: .55; }
 .opp.open { outline: 3px solid var(--ball); outline-offset: -3px; }
 .oinfo { min-width: 0; }
@@ -278,6 +282,24 @@ body {
 .rewards dt { font-family: var(--label); font-size: 12px; text-transform: uppercase; color: var(--panel-dim); padding-top: 3px; }
 .rewards dd { margin: 0; font-weight: 700; }
 #rTitle.good { color: var(--ball); }
+#vs { position: fixed; inset: 0; z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  background: rgb(26 28 44 / .78); cursor: pointer; overflow: hidden;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+#vs[hidden] { display: none; }
+.vsrow { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; width: min(480px, 100%); }
+.vside { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; min-width: 0; }
+.vside .portrait.big { width: 96px; height: 96px; }
+.vsname { font-family: var(--display); font-weight: 700; font-size: 20px; line-height: 1.05; text-shadow: 2px 2px 0 var(--ink); overflow-wrap: anywhere; }
+.vssub { font-family: var(--label); font-size: 10px; text-transform: uppercase; color: var(--panel-dim); }
+.vsx { font-family: var(--display); font-weight: 700; font-size: 56px; color: var(--ball); text-shadow: 4px 4px 0 var(--ink); }
+.vsvenue { font-family: var(--label); font-size: 12px; text-transform: uppercase; color: var(--panel-ink); background: var(--panel); border: 3px solid var(--ink); padding: 6px 12px; }
+#vs.go .vleft { animation: vsl .32s steps(4) both; }
+#vs.go .vright { animation: vsr .32s steps(4) both; }
+#vs.go .vsx { animation: vsz .4s steps(4) .2s both; }
+@keyframes vsl { from { transform: translateX(-120vw); } to { transform: none; } }
+@keyframes vsr { from { transform: translateX(120vw); } to { transform: none; } }
+@keyframes vsz { from { transform: scale(3); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #vs.go .vleft, #vs.go .vright, #vs.go .vsx { animation: none; } }
 #dialog { position: fixed; inset: 0; z-index: 6; display: flex; align-items: flex-end; justify-content: center;
   background: rgb(26 28 44 / .25); cursor: pointer;
   padding-block: 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
@@ -390,6 +412,7 @@ body {
     <div class="tabs" role="tablist">
       <button type="button" class="tab" role="tab" data-tab="tour" aria-selected="true">Tour</button>
       <button type="button" class="tab" role="tab" data-tab="upgrades" aria-selected="false">Upgrades</button>
+      <button type="button" class="tab" role="tab" data-tab="shop" aria-selected="false">Shop</button>
       <button type="button" class="tab" role="tab" data-tab="trophies" aria-selected="false">Trophies</button>
     </div>
     <div id="hubBody"></div>
@@ -412,6 +435,15 @@ body {
       <button type="button" class="btn" id="rAgain">Play again</button>
     </div>
   </div>
+</div>
+
+<div id="vs" hidden>
+  <div class="vsrow">
+    <div class="vside vleft"><canvas id="vsYou" class="portrait big" width="24" height="24"></canvas><div class="vsname" id="vsYouName"></div><div class="vssub" id="vsYouSub"></div></div>
+    <div class="vsx">VS</div>
+    <div class="vside vright"><canvas id="vsOpp" class="portrait big" width="24" height="24"></canvas><div class="vsname" id="vsOppName"></div><div class="vssub" id="vsOppSub"></div></div>
+  </div>
+  <div class="vsvenue" id="vsVenue"></div>
 </div>
 
 <div id="dialog" hidden>
@@ -580,7 +612,7 @@ function racketSprite(step, frame) {
 }
 
 // ---------- State ----------
-const S = { mode: 'menu', state: 'serve', timer: 0, toss: -1, diff: 1, paused: false, sound: true, tips: 0, cheer: 0, clock: 0, second: false, faultOnly: false, online: false };
+const S = { mod: {}, mode: 'menu', state: 'serve', timer: 0, toss: -1, diff: 1, paused: false, sound: true, tips: 0, cheer: 0, clock: 0, second: false, faultOnly: false, online: false };
 const M = { games: [0, 0], pts: [0, 0], server: 0, over: false, winner: -1 };
 const player = { x: 1, y: -0.7, tx: 1, ty: -0.7, swing: 0, side: 1, run: 0, moving: 0, swingT: -1, cool: 0, hold: 0.15, charge: null, connected: false, focus: 0 };
 const parts = [];
@@ -931,7 +963,7 @@ function isIn(x, y, side) {
   return side === 'c' ? (y >= NET_Y && y <= L + 0.05) : (y <= NET_Y && y >= -0.05);
 }
 function launch(who, tx, ty, pace, clear) {
-  const v = shoot(ball.x, ball.y, ball.z, tx, ty, pace, clear);
+  const v = shoot(ball.x, ball.y, ball.z, tx, ty, pace * (S.mod.fast || 1), clear);
   ball.vx = v.vx; ball.vy = v.vy; ball.vz = v.vz;
   ball.lastHitter = who; ball.bounces = 0; ball.rolling = false; ball.mark = null; ball.reach = null; ball.frozen = 0; ball.froze = false; ball.power = false;
   ball.land = predictLand();
@@ -949,7 +981,7 @@ function planIntercept() {
   const home = cpu.home || L + 0.8, dt = 1 / 120, volley = home < NET_Y + 5;
   let best = null;
   for (let i = 0; i < 720; i++) {
-    b.vz -= G * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+    b.vz -= G * dt; if (S.mod.wind && b.z > 0.05) b.vx += S.mod.wind * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
     if (b.z <= 0 && b.vz < 0) { b.z = 0; b.vz = -b.vz * SURF.bounce; b.vx *= SURF.fric; b.vy *= SURF.fric; b.n++; if (b.n >= 2) break; }
     if (volley && b.y >= home - 0.3 && b.z > 0.2 && b.z < 2.5) { best = { x: b.x, y: b.y }; break; }   // volley it
     if (b.n === 1 && b.z > 0.25 && b.z < 2.4) { best = { x: b.x, y: b.y }; if (b.y >= home) break; }
@@ -1065,10 +1097,24 @@ function setupPoint() {
   player.swing = cpu.swing = 0; player.swingT = -1; player.cool = 0; cpu.plan = null; cpu.home = L + 0.8;
   if (player.charge && player.charge.id === 'key') player.charge = null;
   S.state = 'serve'; S.toss = -1; S.timer = M.server === 1 ? 1.2 : 0; S.faultOnly = false; S.rally = 0;
-  renderRally(); renderFocus();
+  renderRally(); renderFocus(); S.bigPoint = ''; bigPointCall();
   resetDragOrigin();
   holdBall();
   renderBoard(); setHint();
+}
+// Big-point calls before the serve
+function gamePoint(i) { const a = M.pts[i], b = M.pts[1 - i]; return a >= 3 && a > b; }
+function matchPoint(i) { return gamePoint(i) && M.games[i] + 1 >= RULES.toWin && M.games[i] + 1 - M.games[1 - i] >= RULES.by; }
+function bigPointCall() {
+  if (S.practice || M.over) return;
+  let txt = '';
+  if (matchPoint(0)) txt = 'Match point';
+  else if (matchPoint(1)) txt = S.online ? 'Match point, them' : 'Match point, ' + ($('nameC').textContent || 'CPU');
+  else if (M.server === 1 && gamePoint(0)) txt = 'Break point';
+  else if (M.server === 0 && gamePoint(1)) txt = 'Break point against';
+  if (!txt) return;
+  S.bigPoint = txt;
+  setTimeout(() => { if (S.state === 'serve' && S.bigPoint === txt && !$('call').classList.contains('show')) showCall(txt, '', txt === 'Match point' || txt === 'Break point'); }, 150);
 }
 function holdBall() {
   const srv = M.server === 0 ? player : cpu;
@@ -1118,6 +1164,7 @@ function cpuServe() {
 }
 function fault() {
   if (ball.dead) return;
+  if (S.practice) { practicePoint('c'); return; }
   const server = M.server === 0 ? 'p' : 'c';
   if (S.second) { endPoint(server === 'p' ? 'c' : 'p', 'Double fault'); return; }
   ball.dead = true; S.second = true; S.state = 'over'; S.timer = 1.1; S.faultOnly = true;
@@ -1164,6 +1211,7 @@ function playerHit(dx, e) {
   else if (q > 0.6) { player.focus = Math.min(3, player.focus + 1); if (player.focus === 3) { tone(440, 0.08, 0.06); tone(660, 0.08, 0.06, 'square', 0.08); tone(990, 0.12, 0.06, 'square', 0.16); } }
   else player.focus = Math.max(0, player.focus - 1);
   renderFocus();
+  if (S.practice) { practiceEvent('returns'); if (q > 0.6 && tag !== 'Mishit') practiceEvent('perfects'); if (hold >= TOUCH_HOLD && tag !== 'Mishit') practiceEvent('drops'); if (pshot) practiceEvent('powers'); }
   launch('p', clamp(tx, -(HW + 2.5), HW + 2.5), ty, pace, clear);
   ball.power = pshot;
   if (pshot) { cpu.react += 0.15; S.hitstop = 0.12; S.shake = 1.4; burst(ball.x, ball.y, ball.z, 12, ['s', 'o', 'y'], 1.6); roar(0.9); }
@@ -1196,6 +1244,7 @@ function cpuHit(dx) {
 
 function endPoint(winner, reason) {
   if (ball.dead) return;
+  if (S.practice) { practicePoint(winner); return; }
   ball.dead = true;
   S.state = 'over'; S.timer = 1.9; S.second = false; S.faultOnly = false;
   const wi = winner === 'p' ? 0 : 1;
@@ -1266,6 +1315,7 @@ function physics(dt) {
     return;
   }
   ball.vz -= G * dt;
+  if (S.mod.wind && ball.z > 0.05) ball.vx += S.mod.wind * dt;
   ball.x += ball.vx * dt; ball.y += ball.vy * dt; ball.z += ball.vz * dt;
   if ((prevY - NET_Y) * (ball.y - NET_Y) < 0 && Math.abs(ball.x) < POST_X && ball.z < netHeight(ball.x)) {
     ball.y = prevY; ball.vy *= -0.12; ball.vx *= 0.3; ball.vz = Math.min(ball.vz, 0);
@@ -1370,7 +1420,7 @@ function burst(x, y, z, n, colors, spd) {
 function stepParts(dt) {
   for (let i = parts.length - 1; i >= 0; i--) {
     const q = parts[i];
-    q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 70 * dt; q.life -= dt;
+    q.x += q.vx * dt + (q.conf ? Math.sin((q.life + i) * 4) * 0.3 : 0); q.y += q.vy * dt; q.vy += (q.conf ? 2 : 70) * dt; q.life -= dt;
     if (q.life <= 0) parts.splice(i, 1);
   }
 }
@@ -1475,7 +1525,7 @@ function drawPlayer(p, isPlayer) {
   pLine(sx, sy, hx, hy, skin[1], 1);
   const gx = Math.round(hx + ux * 2), gy = Math.round(hy + uy * 2);
   pLine(hx, hy, gx, gy, PAL.k, 1);
-  const spr = racketSprite(step, isPlayer ? 'r' : OPP_LOOK.racket);
+  const spr = racketSprite(step, isPlayer ? PLAYER_RACKET : OPP_LOOK.racket);
   ctx.drawImage(spr, Math.round(hx + ux * 6) - 5, Math.round(hy + uy * 6) - 5);
   if (winding) {   // power bar: starts full and drains while you hold
     const hold = (performance.now() - p.charge.t0) / 1000;
@@ -1537,7 +1587,7 @@ function startMatch() {
   initAudio();
   if (S.online || NET.game) leaveOnline();
   $('nameC').textContent = 'CPU';
-  setOpponent(DIFFS[S.diff]); PS = statsFor(MID_STATS); RULES = { toWin: 4, by: 2 }; S.career = null; MS = null;
+  setOpponent(DIFFS[S.diff]); PS = statsFor(MID_STATS); RULES = { toWin: 4, by: 2 }; S.career = null; MS = null; S.practice = false; S.mod = {};
   if (typeof setVenue === 'function') setVenue('grass');
   Object.assign(M, { games: [0, 0], pts: [0, 0], server: 0, over: false, winner: -1 });
   S.mode = 'play'; S.paused = false; S.second = false; S.tips = 0;
@@ -1561,6 +1611,7 @@ function finishMatch() {
 }
 function pauseGame() {
   if (S.mode !== 'play' || S.paused) return;
+  $('quitBtn').textContent = S.practice ? 'Leave practice' : S.career ? 'Forfeit match' : 'Quit to menu';
   if (S.online) { show('pause', true); $('resumeBtn').focus(); return; }   // an online match keeps running
   S.paused = true; drag = null; player.charge = null; show('pause', true); setHint();
 }
@@ -1576,7 +1627,7 @@ $('againBtn').addEventListener('click', () => { if (S.online && oppPeer()) start
 $('menuBtn').addEventListener('click', () => { if (S.online || NET.game) leaveOnline(); S.mode = 'menu'; show('end', false); show('menu', true); });
 $('pauseBtn').addEventListener('click', pauseGame);
 $('resumeBtn').addEventListener('click', resumeGame);
-$('quitBtn').addEventListener('click', () => { if (S.career) { S.paused = false; show('pause', false); openCareer(); return; } if (S.online || NET.game) leaveOnline(); S.mode = 'menu'; S.paused = false; show('pause', false); show('menu', true); hideCall(); setHint(); });
+$('quitBtn').addEventListener('click', () => { if (S.career || S.practice) { S.paused = false; show('pause', false); openCareer(); return; } if (S.online || NET.game) leaveOnline(); S.mode = 'menu'; S.paused = false; show('pause', false); show('menu', true); hideCall(); setHint(); });
 $('soundBtn').addEventListener('click', () => {
   S.sound = !S.sound; $('soundBtn').textContent = `Sound: ${S.sound ? 'on' : 'off'}`;
   try { localStorage.setItem('gcr-sound', S.sound ? '1' : '0'); } catch (e) {}
@@ -1806,7 +1857,8 @@ function loadCareer() {
 function mergeCareer(c) {
   const base = newCareer();
   return { ...base, ...c, stats: { ...base.stats, ...(c.stats || {}) }, best: { ...(c.best || {}) }, seen: { ...(c.seen || {}) },
-           trophies: { ...(c.trophies || {}) }, endless: { ...base.endless, ...(c.endless || {}) } };
+           trophies: { ...(c.trophies || {}) }, endless: { ...base.endless, ...(c.endless || {}) },
+           daily: c.daily || 0, kit: { ...(c.kit || {}) }, owned: Array.isArray(c.owned) ? c.owned.slice() : [] };
 }
 function saveCareer() {
   CAREER.updated = Date.now();
@@ -1900,6 +1952,7 @@ function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.
 function portraitCanvas(look, big) { const c = el('canvas', big ? 'portrait big' : 'portrait'); drawPortrait(c, look); return c; }
 function openCareer() {
   ['menu', 'end', 'pause', 'online', 'results'].forEach(id => show(id, false));
+  S.practice = false; PR = null;
   S.mode = 'hub'; S.career = null; hideCall(); setHint(); updateGoalChip(); renderFocus(); S.rally = 0; renderRally();
   if (!CAREER) {
     CAREER = newCareer();
@@ -1930,10 +1983,15 @@ function renderHub() {
   body.replaceChildren();
   if (HUB_TAB === 'tour') renderTour(body);
   else if (HUB_TAB === 'upgrades') renderUpgrades(body);
+  else if (HUB_TAB === 'shop') renderShop(body);
   else if (typeof renderTrophies === 'function') renderTrophies(body);
 }
 function renderTour(body) {
   let shownLocked = false;
+  const pb = el('button', 'btn small', CAREER.practiced ? 'Practice court' : 'Practice court · +50 coins');
+  pb.type = 'button'; pb.addEventListener('click', startPractice);
+  body.append(pb);
+  renderDaily(body);
   TIERS.forEach((t, ti) => {
     const open = tierOpen(ti);
     if (!open && shownLocked) return;
@@ -2002,10 +2060,10 @@ function startCareerMatch(id) {
   show('career', false);
   setOpponent({ ...o.ai, marker: t.marker, look: o.look });
   PS = statsFor(CAREER.stats); RULES = { ...t.rules };
-  S.career = { id, tier: ti, goal: o.goal, coins: t.coins, pts: o.pts, name: o.name };
+  S.career = { id, tier: ti, goal: o.goal, coins: t.coins, pts: o.pts, name: o.name }; S.mod = {};
   stageScene(id, t.venue);
   $('nameC').textContent = o.name.split(' ')[0];
-  runScene([[id, o.pre], ['bea', o.tip]], beginCareerMatch);
+  runScene([[id, o.pre], ['bea', o.tip]], () => showVs(o, t.name, beginCareerMatch));
 }
 function beginCareerMatch() {
   initAudio();
@@ -2014,19 +2072,23 @@ function beginCareerMatch() {
   Object.assign(M, { games: [0, 0], pts: [0, 0], server: 0, over: false, winner: -1 });
   S.mode = 'play'; S.paused = false; S.second = false; S.tips = Math.min(S.tips, 2);
   hideCall(); setupPoint(); requestWake(); updateGoalChip();
+  if (S.mod.wind) setTimeout(() => showCall('Wind ' + (S.mod.wind > 0 ? '→' : '←'), 'The ball drifts ' + (S.mod.wind > 0 ? 'right' : 'left'), false), 300);
 }
 function careerResults() {
   const c = S.career, won = M.winner === 0;
   const stars3 = won ? [true, goalMet(c.goal), M.games[0] - M.games[1] >= 2] : [false, false, false];
   const n = stars3.filter(Boolean).length;
-  const prev = c.endless ? 0 : (CAREER.best[c.id] || 0), first = won && !prev && !c.endless;
+  const special = c.endless || c.daily;
+  const prev = special ? 0 : (CAREER.best[c.id] || 0), first = won && !prev && !special;
   const newStars = Math.max(0, n - prev);
-  let coins = won ? Math.round(c.coins * (first || c.endless ? 1 : 0.5)) + 15 * newStars + 5 * n : 10 + 5 * Math.min(c.tier, 4);
+  let coins = won ? Math.round(c.coins * (first || special ? 1 : 0.5)) + 15 * newStars + 5 * n : 10 + 5 * Math.min(c.tier, 4);
   coins += Math.min(30, MS.rallyMax);
-  const pts = won ? (first || c.endless ? c.pts : Math.round(c.pts * 0.1)) : 0;
+  if (S.mod.golden) coins += 3 * MS.perfects;
+  const pts = won ? (first || special ? c.pts : Math.round(c.pts * 0.1)) : 0;
+  if (won && c.daily) CAREER.daily = todayKey();
   const before = rankFor(CAREER.pts);
   CAREER.coins += coins; CAREER.pts += pts; CAREER.matches++; if (won) CAREER.wins++;
-  if (won && !c.endless) CAREER.best[c.id] = Math.max(prev, n);
+  if (won && !special) CAREER.best[c.id] = Math.max(prev, n);
   if (c.endless && typeof endlessResult === 'function') endlessResult(won);
   const after = rankFor(CAREER.pts);
   LAST = { won, perfects: MS.perfects, rallyMax: MS.rallyMax, powers: MS.powers || 0, aces: MS.aces, lost: M.games[1], deficit: MS.deficit || 0 };
@@ -2044,21 +2106,22 @@ function careerResults() {
   $('rRank').textContent = after < before ? `#${before} → #${after}` : `#${after}`;
   $('rLongest').textContent = MS.rallyMax + ' shots';
   show('results', true);
-  if (won) { S.cheer = 4; sfx.win(); }
+  if (won) { S.cheer = 4; sfx.win(); confetti(OPPS[c.id] && OPPS[c.id].boss ? 140 : 50); }
   $('rContinue').onclick = () => {
     show('results', false);
     const o = OPPS[c.id];
     let lines;
-    if (c.endless) lines = won ? [['bea', 'Another one. The ranking keeps climbing.']] : [['bea', LOSS_LINES[(Math.random() * LOSS_LINES.length) | 0]]];
+    if (c.daily) lines = won ? [['bea', 'Daily challenge done. A new one arrives tomorrow.']] : [['bea', LOSS_LINES[(Math.random() * LOSS_LINES.length) | 0]]];
+    else if (c.endless) lines = won ? [['bea', 'Another one. The ranking keeps climbing.']] : [['bea', LOSS_LINES[(Math.random() * LOSS_LINES.length) | 0]]];
     else if (won) lines = [[c.id, o.win], ...(first ? (o.after || []) : [])];
     else lines = [['bea', LOSS_LINES[(Math.random() * LOSS_LINES.length) | 0]], ['bea', o.tip]];
     const finale = won && first && c.id === 'victor';
-    if (finale) { CAREER.champion = true; saveCareer(); lines = lines.concat(ENDING); }
+    if (finale) { CAREER.champion = true; saveCareer(); lines = lines.concat(ENDING); confetti(260); setVenue('centre'); }
     if (after === 1 && before > 1) lines = lines.concat([['bea', "World Number 1, {name}. From ball kid to Number 1."], ['bea', "Now comes the hard part. Staying there."]]);
-    stageScene(c.endless ? null : c.id, null);
+    stageScene(special ? null : c.id, null);
     runScene(lines, () => { if (typeof checkTrophies === 'function') checkTrophies(); openCareer(); });
   };
-  $('rAgain').onclick = () => { show('results', false); if (c.endless) startEndlessMatch(c.id); else startCareerMatch(c.id); };
+  $('rAgain').onclick = () => { show('results', false); if (c.daily) startDaily(); else if (c.endless) startEndlessMatch(c.id); else startCareerMatch(c.id); };
   if (typeof checkTrophies === 'function') checkTrophies();
 }
 
@@ -2201,10 +2264,10 @@ function startEndlessMatch(id) {
   show('career', false); show('results', false);
   setOpponent({ ...o.ai, marker: false, look: o.look });
   PS = statsFor(CAREER.stats); RULES = { toWin: 3, by: 1 };
-  S.career = { id, tier: 5, goal: o.goal, coins: o.coins, pts: o.pts, name: o.name, endless: true };
+  S.career = { id, tier: 5, goal: o.goal, coins: o.coins, pts: o.pts, name: o.name, endless: true }; S.mod = {};
   stageScene(id, o.venue);
   $('nameC').textContent = o.name.split(' ')[0];
-  runScene([[id, o.pre]], beginCareerMatch);
+  runScene([[id, o.pre]], () => showVs(o, 'Endless Tour · ' + VENUE_NAMES[o.venue], beginCareerMatch));
 }
 function endlessResult(won) {
   const e = CAREER.endless;
@@ -2228,7 +2291,7 @@ async function initCloud() {
     if (body && body.v === 1) {
       const remote = mergeCareer(JSON.parse(JSON.stringify(body)));
       if (!CAREER || (remote.updated || 0) > (CAREER.updated || 0)) {
-        CAREER = remote;
+        CAREER = remote; applyKit();
         try { localStorage.setItem(SAVE_KEY, JSON.stringify(CAREER)); } catch (e) {}
         if (!$('career').hidden) renderHub();
         return;
@@ -2244,6 +2307,179 @@ function cloudSave() {
   CLOUD.doc.set(JSON.parse(JSON.stringify(CAREER)))
     .catch(e => { if (e && (e.code === 'invalid_argument' || e.code === 'not_granted' || e.code === 'revoked')) CLOUD = null; })
     .finally(() => { if (!CLOUD) return; CLOUD.busy = false; if (CLOUD.pending) { CLOUD.pending = false; cloudSave(); } });
+}
+
+// ---------- VS splash ----------
+function showVs(o, venueName, done) {
+  drawPortrait($('vsYou'), CAST.you.look); drawPortrait($('vsOpp'), o.look);
+  $('vsYouName').textContent = CAREER.name; $('vsYouSub').textContent = 'World #' + rankFor(CAREER.pts);
+  $('vsOppName').textContent = o.name; $('vsOppSub').textContent = o.tag;
+  $('vsVenue').textContent = venueName + ' · First to ' + RULES.toWin + ' game' + (RULES.toWin > 1 ? 's' : '');
+  const v = $('vs');
+  v.hidden = false; v.classList.remove('go'); void v.offsetWidth; v.classList.add('go');
+  tone(196, 0.25, 0.08, 'sawtooth'); tone(392, 0.3, 0.06, 'square', 0.25); click(0.6);
+  let finished = false;
+  const end = () => { if (finished) return; finished = true; v.hidden = true; v.removeEventListener('click', end); done(); };
+  v.addEventListener('click', end);
+  setTimeout(end, 1900);
+}
+function confetti(n) {
+  const cols = ['l', 's', 'o', 'c', 'y', 'w', 'r', 'b'];
+  for (let i = 0; i < n; i++) parts.push({ x: rand(0, VW), y: rand(-VH * 0.3, 0), vx: rand(-6, 6), vy: rand(8, 26), life: rand(2.5, 4.5), c: PAL[cols[i % cols.length]], conf: true });
+  if (parts.length > 400) parts.splice(0, parts.length - 400);
+}
+
+// ---------- Pro shop: kit colours ----------
+const KIT = {
+  cap: [{ id: 'lime', name: 'Lime cap', c: ['l', 'g'], price: 0 }, { id: 'sky', name: 'Sky cap', c: ['c', 'b'], price: 90 },
+        { id: 'sunset', name: 'Sunset cap', c: ['o', 'r'], price: 90 }, { id: 'gold', name: 'Gold cap', c: ['s', 'o'], price: 140 },
+        { id: 'white', name: 'Tour white cap', c: ['w', 'm'], price: 140 }, { id: 'royal', name: 'Royal cap', c: ['h', 'n'], price: 200 }],
+  shirt: [{ id: 'white', name: 'Club whites', c: ['w', 'm', 'M'], price: 0 }, { id: 'sky', name: 'Sky shirt', c: ['c', 'b', 'v'], price: 120 },
+          { id: 'lime', name: 'Lime shirt', c: ['l', 'g', 't'], price: 120 }, { id: 'sunset', name: 'Sunset shirt', c: ['o', 'r', 'h'], price: 160 },
+          { id: 'gold', name: 'Gold shirt', c: ['s', 'o', 'r'], price: 220 }],
+  racket: [{ id: 'red', name: 'Red racket', c: 'r', price: 0 }, { id: 'blue', name: 'Blue racket', c: 'b', price: 80 },
+           { id: 'lime', name: 'Lime racket', c: 'l', price: 80 }, { id: 'night', name: 'Night racket', c: 'n', price: 120 },
+           { id: 'gold', name: 'Gold racket', c: 's', price: 150 }],
+};
+const SLOT_NAMES = { cap: 'Caps', shirt: 'Shirts', racket: 'Rackets' };
+let PLAYER_RACKET = 'r';
+function kitItem(slot, id) { return KIT[slot].find(k => k.id === id) || KIT[slot][0]; }
+function applyKit() {
+  const k = (CAREER && CAREER.kit) || {};
+  const cap = kitItem('cap', k.cap).c, shirt = kitItem('shirt', k.shirt).c;
+  SPR.back = makeSprite(remap(BODY_BACK, { l: cap[0], g: cap[1], w: shirt[0], m: shirt[1], M: shirt[2] }));
+  PLAYER_RACKET = kitItem('racket', k.racket).c;
+  CAST.you.look = { ...CAST.you.look, band: cap, shirt, trim: cap[0] };
+}
+function renderShop(body) {
+  CAREER.kit = CAREER.kit || {}; CAREER.owned = CAREER.owned || [];
+  body.append(el('p', 'blurb', 'New colours for your kit. You can see them on court and in your portrait.'));
+  Object.keys(KIT).forEach(slot => {
+    body.append(el('h3', 'shophead', SLOT_NAMES[slot]));
+    KIT[slot].forEach(it => {
+      const owned = it.price === 0 || CAREER.owned.includes(slot + ':' + it.id);
+      const on = kitItem(slot, CAREER.kit[slot]).id === it.id;
+      const row = el('div', 'upg shoprow');
+      const sw = el('div', 'swatch');
+      sw.style.background = PAL[Array.isArray(it.c) ? it.c[0] : it.c];
+      const info = el('div', 'oinfo'); info.append(el('div', 'oname', it.name));
+      const b = el('button', 'btn small' + (!on && (owned || CAREER.coins >= it.price) ? ' primary' : ''), on ? 'Wearing' : owned ? 'Wear' : it.price + ' coins');
+      b.type = 'button'; b.disabled = on || (!owned && CAREER.coins < it.price);
+      b.addEventListener('click', () => {
+        if (!owned) { if (CAREER.coins < it.price) return; CAREER.coins -= it.price; CAREER.owned.push(slot + ':' + it.id); sfx.win(); }
+        CAREER.kit[slot] = it.id; applyKit(); saveCareer(); renderHub();
+      });
+      row.append(sw, info, b);
+      body.append(row);
+    });
+  });
+}
+
+// ---------- Practice court ----------
+const PRACTICE = [
+  { key: 'returns', n: 5, text: 'Return 5 balls' },
+  { key: 'perfects', n: 3, text: 'Hit 3 Perfect shots' },
+  { key: 'drops', n: 1, text: 'Hold until the bar flashes: drop shot' },
+  { key: 'powers', n: 1, text: 'Chain 3 Perfects, then hit a Power shot' },
+];
+let PR = null;
+function startPractice() {
+  if (S.online || NET.game) leaveOnline();
+  show('career', false);
+  setOpponent({ speed: 6, react: 0.15, miss: 0.1, err: 0, pace: 12, serve: 11, aim: 0, marker: true, look: CAST.bea.look });
+  PS = statsFor(CAREER.stats); RULES = { toWin: 99, by: 1 };
+  setVenue('grass');
+  S.career = null; S.practice = true; MS = null; S.mod = {};
+  PR = { step: 0, returns: 0, perfects: 0, drops: 0, powers: 0 };
+  $('nameC').textContent = 'Bea';
+  stageScene(null, 'grass');
+  cpu.y = cpu.ty = NET_Y + 1.4;
+  runScene([['bea', "Practice court. I'll feed you balls. No score, no pressure."], ['bea', "Keep one finger down to move. Tap with another finger to swing."]], () => {
+    Object.assign(M, { games: [0, 0], pts: [0, 0], server: 1, over: false, winner: -1 });
+    S.mode = 'play'; S.paused = false; S.second = false; player.focus = 0;
+    hideCall(); setupPoint(); requestWake(); practiceChip();
+  });
+}
+function practiceChip() {
+  const el2 = $('goal');
+  if (!S.practice || !PR) return;
+  el2.hidden = false;
+  const st = PRACTICE[PR.step];
+  if (!st) { el2.classList.add('done'); el2.textContent = '★ Practice complete'; return; }
+  el2.classList.remove('done');
+  el2.textContent = `Practice: ${st.text} ${Math.min(PR[st.key], st.n)}/${st.n}`;
+}
+function practiceEvent(kind) {
+  if (!S.practice || !PR) return;
+  PR[kind] = (PR[kind] || 0) + 1;
+  const st = PRACTICE[PR.step];
+  if (st && PR[st.key] >= st.n) {
+    PR.step++;
+    const next = PRACTICE[PR.step];
+    showCall('Nice!', next ? 'Next: ' + next.text : 'Practice complete', true);
+    tone(660, 0.1, 0.06); tone(990, 0.15, 0.06, 'square', 0.1);
+    if (!next) {
+      confetti(80);
+      if (!CAREER.practiced) { CAREER.practiced = true; CAREER.coins += 50; saveCareer(); setTimeout(() => showCall('+50 coins', 'Practice bonus', true), 1700); }
+    }
+  }
+  practiceChip();
+}
+function practicePoint(winner) {
+  ball.dead = true;
+  S.state = 'over'; S.timer = 0.9; S.second = false; S.faultOnly = false;
+  M.server = 1; M.pts = [0, 0];
+  if (!$('call').classList.contains('show')) showCall(winner === 'p' ? 'Good' : 'Again', '', winner === 'p');
+}
+
+// ---------- Daily challenge ----------
+const MODS = {
+  wind: { name: 'Windy day', desc: 'The wind pushes the ball sideways' },
+  fast: { name: 'Fast balls', desc: 'Every shot travels 20% faster' },
+  golden: { name: 'Golden day', desc: 'Every Perfect shot earns 3 extra coins' },
+};
+function todayKey() { const d = new Date(); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); }
+function highestTier() { let t = 0; TIERS.forEach((_, i) => { if (tierOpen(i)) t = i; }); return t; }
+function dailySpec() {
+  const key = todayKey(), tier = highestTier();
+  const o = genEndless(key, 1 + tier * 2);
+  o.tag = o.tag.replace(/ · Level \d+/, '');
+  const modKeys = Object.keys(MODS), mod = modKeys[key % modKeys.length];
+  const wind = mod === 'wind' ? ((key % 2) ? 1 : -1) * (1.6 + (key % 5) * 0.3) : 0;
+  return { o, mod, wind, tier, coins: 150 + 30 * tier };
+}
+function renderDaily(body) {
+  const d = dailySpec(), done = CAREER.daily === todayKey();
+  OPPS.daily = d.o;
+  const sec = el('section', 'tier');
+  const head = el('div', 'tierhead');
+  head.append(el('h3', null, 'Daily challenge'), el('span', 'rules', done ? 'Done today' : `+${d.coins} coins`));
+  sec.append(head, el('p', 'blurb', `${MODS[d.mod].name}: ${MODS[d.mod].desc.toLowerCase()}. ${done ? 'A new challenge arrives tomorrow.' : 'Win once today for the bonus.'}`));
+  const row = el('div', 'opp' + (done ? ' beaten' : ' open'));
+  const info = el('div', 'oinfo');
+  info.append(el('div', 'oname', d.o.name), el('div', 'otag', `${d.o.tag} · ${VENUE_NAMES[d.o.venue]}`));
+  const right = el('div', 'oright');
+  const b = el('button', 'btn small' + (done ? '' : ' primary'), done ? 'Replay' : 'Play');
+  b.type = 'button'; b.addEventListener('click', startDaily);
+  right.append(el('div', 'ostars', done ? '★ done' : 'Today'), b);
+  row.append(portraitCanvas(d.o.look), info, right);
+  sec.append(row);
+  body.append(sec);
+}
+function startDaily() {
+  const d = dailySpec(), o = d.o;
+  OPPS.daily = o;
+  if (S.online || NET.game) leaveOnline();
+  show('career', false); show('results', false);
+  setOpponent({ ...o.ai, marker: d.tier < 3, look: o.look });
+  PS = statsFor(CAREER.stats); RULES = { toWin: 3, by: 1 };
+  const already = CAREER.daily === todayKey();
+  S.career = { id: 'daily', tier: d.tier, goal: o.goal, coins: already ? 40 : d.coins, pts: 20, name: o.name, daily: true };
+  stageScene('daily', o.venue);
+  S.mod = { wind: d.wind, fast: d.mod === 'fast' ? 1.2 : 1, golden: d.mod === 'golden' };
+  $('nameC').textContent = o.name.split(' ')[0];
+  runScene([['daily', o.pre], ['bea', `Daily challenge. ${MODS[d.mod].name}: ${MODS[d.mod].desc.toLowerCase()}.`]],
+    () => showVs(o, 'Daily · ' + MODS[d.mod].name, beginCareerMatch));
 }
 
 $('careerBtn').addEventListener('click', () => { initAudio(); openCareer(); });
@@ -2358,7 +2594,7 @@ function startOnline(ep, iStarted) {
   S.mode = 'play'; S.paused = false; S.second = false; S.tips = 0;
   ['menu', 'end', 'pause', 'online'].forEach(id => show(id, false));
   $('nameC').textContent = 'Them';
-  setOpponent(DIFFS[1]); PS = statsFor(MID_STATS); RULES = { toWin: 4, by: 2 }; S.career = null; MS = null;
+  setOpponent(DIFFS[1]); PS = statsFor(MID_STATS); RULES = { toWin: 4, by: 2 }; S.career = null; MS = null; S.mod = {};
   if (typeof setVenue === 'function') setVenue('grass');
   hideCall(); setupPoint(); requestWake();
 }
@@ -2485,13 +2721,14 @@ function start(data) {
   }
   renderBoard();
   CAREER = loadCareer();
+  applyKit();
   initNet();
   initCloud();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
   requestAnimationFrame(frame);
 }
 const hot = window.claude && window.claude.hot;
-try { hot && hot.snapshot && hot.snapshot(() => ({ M: JSON.parse(JSON.stringify(M)), diff: S.diff, mode: S.online || S.career ? 'menu' : S.mode })); } catch (e) {}
+try { hot && hot.snapshot && hot.snapshot(() => ({ M: JSON.parse(JSON.stringify(M)), diff: S.diff, mode: S.online || S.career || S.practice ? 'menu' : S.mode })); } catch (e) {}
 if (hot && hot.ready) hot.ready(start); else start((hot && hot.data) || {});
 })();
 </script>
