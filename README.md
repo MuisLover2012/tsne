@@ -6,13 +6,13 @@ Open `index.html` in a phone browser. It's a single file with no build step and 
 
 ## How to play
 
-- **Move:** drag anywhere on the screen. Your player follows your finger.
-- **Swing:** flick your finger or tap as the ball reaches you. You can also tap with a second finger while you move.
-- **Timing:** perfect timing hits hardest. Swing early to pull the ball cross-court or late to send it down the line. Swing far off and you may mishit, and a missed swing slows your next one.
-- **Aim:** the direction of your flick aims the shot. Flick up to hit deep, or flick hard down for a drop shot.
+- **Move:** keep one finger on the screen and drag to move.
+- **Swing:** tap with another finger as the ball arrives. The racket winds back while you hold and swings when you lift.
+- **Power:** a quick tap hits hard and deep. Hold a little longer for a softer shot, or hold until the bar flashes for a drop shot. A bar above your player shows the power while you hold.
+- **Timing:** swing early to pull the ball cross-court, late to send it down the line. Swing far off and you may mishit.
 - **Serve:** tap to toss, then tap again at the top of the toss. Two faults lose the point.
 
-On a computer, use the arrow keys to move, Space to serve and swing (hold an arrow to aim) and P to pause.
+On a computer, use the arrow keys to move, hold and release Space to swing (press it to serve) and P to pause.
 
 On Easy and Club, a ring at your feet turns lime when it's time to swing, and a cyan ring marks where the opponent's shot will land.
 
