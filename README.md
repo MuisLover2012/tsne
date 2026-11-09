@@ -13,4 +13,6 @@ Open `index.html` in a phone browser. It's a single file with no build step and 
 
 On a computer, use the arrow keys to move, Space to serve and P to pause.
 
+The art follows the rules in [`art/pixel-anchor.md`](art/pixel-anchor.md): the Sweetie-16 palette, 1px dark outlines and 3-tone shading.
+
 There are three opponents: Easy, Club and Pro. Easy and Club show a marker where the opponent's shot will land.
