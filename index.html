@@ -183,6 +183,8 @@ body {
 }
 .btn.primary { background: var(--ball); color: var(--ball-ink); }
 .btn:active { transform: translateY(5px); box-shadow: none; }
+.fine { margin: 0; font-size: 14px; line-height: 1.35; color: var(--panel-dim); }
+#lobbyList:empty { display: none; }
 .final { font-family: var(--display); font-size: 72px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; text-shadow: 4px 4px 0 var(--ink); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -199,7 +201,7 @@ body {
     <div id="board" role="status" aria-live="polite">
       <span></span><span></span><span class="lab">Games</span><span class="lab">Pts</span>
       <span class="srv" id="srvP"></span><span class="name">You</span><span class="num" id="gP">0</span><span class="num pt" id="ptP">0</span>
-      <span class="srv" id="srvC"></span><span class="name">CPU</span><span class="num" id="gC">0</span><span class="num pt" id="ptC">0</span>
+      <span class="srv" id="srvC"></span><span class="name" id="nameC">CPU</span><span class="num" id="gC">0</span><span class="num pt" id="ptC">0</span>
     </div>
     <button id="pauseBtn" type="button" aria-label="Pause"><svg viewBox="0 0 14 14"><rect x="2" y="1" width="3" height="12"/><rect x="9" y="1" width="3" height="12"/></svg></button>
   </div>
@@ -232,7 +234,8 @@ body {
       <dt>Serve</dt><dd>Tap to toss, then tap again at the top. Two faults lose the point.</dd>
     </dl>
     <div class="actions">
-      <button type="button" class="btn primary" id="playBtn">Play</button>
+      <button type="button" class="btn primary" id="playBtn">Play the computer</button>
+      <button type="button" class="btn" id="friendBtn">Play a friend</button>
     </div>
   </div>
 </div>
@@ -245,6 +248,19 @@ body {
       <button type="button" class="btn" id="soundBtn">Sound: on</button>
       <button type="button" class="btn" id="quitBtn">Quit to menu</button>
     </div>
+  </div>
+</div>
+
+<div id="online" class="overlay" hidden>
+  <div class="card">
+    <div class="head"><div class="eyebrow">Play a friend</div><h2>Online match</h2></div>
+    <p class="lede" id="onlineStatus">Connecting…</p>
+    <div class="actions" id="lobbyList"></div>
+    <div class="actions">
+      <button type="button" class="btn primary" id="hostBtn">Host a match</button>
+      <button type="button" class="btn" id="onlineBack">Back</button>
+    </div>
+    <p class="fine">Your friend needs a Claude account and access to this game. Share it with them from the Share menu. When they open the link, they tap Play a friend and join your match.</p>
   </div>
 </div>
 
@@ -374,7 +390,7 @@ function racketSprite(step, frame) {
 }
 
 // ---------- State ----------
-const S = { mode: 'menu', state: 'serve', timer: 0, toss: -1, diff: 1, paused: false, sound: true, tips: 0, cheer: 0, clock: 0, second: false, faultOnly: false };
+const S = { mode: 'menu', state: 'serve', timer: 0, toss: -1, diff: 1, paused: false, sound: true, tips: 0, cheer: 0, clock: 0, second: false, faultOnly: false, online: false };
 const M = { games: [0, 0], pts: [0, 0], server: 0, over: false, winner: -1 };
 const player = { x: 1, y: -0.7, tx: 1, ty: -0.7, swing: 0, side: 1, run: 0, moving: 0, swingT: -1, cool: 0, hold: 0.15, charge: null, connected: false };
 const cpu = { x: -1, y: L + 0.8, tx: -1, ty: L + 0.8, swing: 0, side: -1, run: 0, moving: 0, plan: null, react: 0 };
@@ -552,9 +568,10 @@ function buzz(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch (e
 
 // ---------- Scoring ----------
 const WORDS = ['Love', '15', '30', '40'];
+const oppName = () => S.online ? 'them' : 'CPU';
 function scoreCall() {
   const p = M.pts, s = M.server;
-  if (p[0] >= 3 && p[1] >= 3) return p[0] === p[1] ? 'Deuce' : `Advantage ${p[0] > p[1] ? 'you' : 'CPU'}`;
+  if (p[0] >= 3 && p[1] >= 3) return p[0] === p[1] ? 'Deuce' : `Advantage ${p[0] > p[1] ? 'you' : oppName()}`;
   if (p[0] === p[1]) return `${WORDS[p[0]]}–All`;
   return `${WORDS[p[s]]}–${WORDS[p[1 - s]]}`;
 }
@@ -564,8 +581,8 @@ function award(i) {
   if (a >= 4 && a - b >= 2) {
     M.games[i]++; M.pts = [0, 0]; M.server = 1 - M.server;
     const gi = M.games[i], gj = M.games[1 - i];
-    if (gi >= 4 && gi - gj >= 2) { M.over = true; M.winner = i; return `Game, set and match, ${i ? 'CPU' : 'you'}`; }
-    return `Game ${i ? 'CPU' : 'you'} · ${M.games[0]}–${M.games[1]}`;
+    if (gi >= 4 && gi - gj >= 2) { M.over = true; M.winner = i; return `Game, set and match, ${i ? oppName() : 'you'}`; }
+    return `Game ${i ? oppName() : 'you'} · ${M.games[0]}–${M.games[1]}`;
   }
   return scoreCall();
 }
@@ -642,12 +659,13 @@ function isIn(x, y, side) {
 function launch(who, tx, ty, pace, clear) {
   const v = shoot(ball.x, ball.y, ball.z, tx, ty, pace, clear);
   ball.vx = v.vx; ball.vy = v.vy; ball.vz = v.vz;
-  ball.lastHitter = who; ball.bounces = 0; ball.rolling = false; ball.mark = null; ball.reach = null;
+  ball.lastHitter = who; ball.bounces = 0; ball.rolling = false; ball.mark = null; ball.reach = null; ball.frozen = 0; ball.froze = false;
   ball.land = predictLand();
   ball.landOut = !isIn(ball.land.x, ball.land.y, who === 'p' ? 'c' : 'p');
   if (who === 'p') { cpu.plan = null; cpu.react = D().react; }
   sfx.hit(who === 'p');
   if (who === 'p') buzz(12);
+  if (S.online && who === 'p') netShot();
 }
 function planIntercept() {
   if (ball.landOut && ball.bounces === 0) return { letGo: true };
@@ -702,6 +720,7 @@ function startSwing(hold) {
   player.swingT = 0; player.cool = SWING_CD; player.hold = hold; player.connected = false;
   player.swing = 1;
   player.side = (ball.lastHitter === 'c' ? ball.x : player.x + 1) >= player.x ? 1 : -1;
+  netSwing();
   player.tx = player.x; player.ty = player.y; resetDragOrigin();   // plant your feet to hit
   if (ball.reach && !ball.dead) {                                   // the ball just went past: a late hit
     const late = S.clock - ball.reach.t;
@@ -803,8 +822,9 @@ function playerServe() {
   const tg = serveTarget('p', Math.random() < pFault);
   const pace = S.second ? 14 + 3 * (1 - err) : 17 + 8 * (1 - err);
   player.swing = 1; player.side = 1;
+  ball.isServe = true;
   launch('p', tg.tx, tg.ty, pace, tg.net ? -99 : 0.12);
-  ball.isServe = true; S.state = 'rally';
+  ball.isServe = true; S.state = 'rally'; netSwing();
   showTag(err < 0.2 ? 'Perfect' : t < 0.6 ? 'Early' : 'Late', err < 0.2);
   setHint();
 }
@@ -823,6 +843,7 @@ function fault() {
   ball.dead = true; S.second = true; S.state = 'over'; S.timer = 1.1; S.faultOnly = true;
   showCall('Fault', 'Second serve', false); sfx.net();
   setHint();
+  if (S.online) netPoint('fault', null, 'Fault');
 }
 function playerHit(dx, e) {
   // e: -1 swung early ... 0 perfect ... +1 swung late. Power comes from how quickly you lifted the tap.
@@ -887,8 +908,10 @@ function endPoint(winner, reason) {
   renderBoard(); setHint();
   S.cheer = wi === 0 ? 1.6 : 0.6;
   if (wi === 0) sfx.win(); else sfx.lose();
+  if (S.online) netPoint('point', winner, reason);
 }
 function onBounce() {
+  if (S.online && ball.lastHitter === 'p') return;   // your friend's phone rules on your shot
   const side = ball.y < NET_Y ? 'p' : 'c';
   const hitter = ball.lastHitter;
   if (!hitter) return;
@@ -925,6 +948,7 @@ function tryHit(who, prevY) {
   else ball.reach = { t: S.clock, dx };                         // in reach but not swinging yet
 }
 function physics(dt) {
+  if (ball.frozen) { if (S.clock - ball.frozen < 0.7) return; ball.frozen = 0; }
   const prevY = ball.y;
   if (ball.rolling) {
     const f = Math.max(0, 1 - 1.6 * dt);
@@ -936,7 +960,7 @@ function physics(dt) {
   if ((prevY - NET_Y) * (ball.y - NET_Y) < 0 && Math.abs(ball.x) < POST_X && ball.z < netHeight(ball.x)) {
     ball.y = prevY; ball.vy *= -0.12; ball.vx *= 0.3; ball.vz = Math.min(ball.vz, 0);
     sfx.net();
-    if (!ball.dead) { if (ball.isServe) fault(); else endPoint(ball.lastHitter === 'p' ? 'c' : 'p', 'Net'); }
+    if (!ball.dead && !(S.online && ball.lastHitter === 'p')) { if (ball.isServe) fault(); else endPoint(ball.lastHitter === 'p' ? 'c' : 'p', 'Net'); }
   }
   if (ball.z <= 0 && ball.vz < 0) {
     ball.z = 0;
@@ -946,7 +970,12 @@ function physics(dt) {
     ball.vx *= 0.86; ball.vy *= 0.86;
     if (!ball.dead) onBounce();
   }
-  if (!ball.dead) { tryHit('p', prevY); tryHit('c', prevY); }
+  if (!ball.dead) { tryHit('p', prevY); if (!S.online) tryHit('c', prevY); }
+  // online: hold your shot where your friend can reach it until their phone says what happened
+  if (S.online && ball.lastHitter === 'p' && !ball.dead && !ball.froze && ball.vy > 0) {
+    const line = cpu.y - 0.3;
+    if (prevY < line && ball.y >= line && Math.abs(ball.x - cpu.x) < P_REACH + 0.5 && ball.z < 3.2) { ball.frozen = S.clock; ball.froze = true; }
+  }
 }
 function moveToward(p, speed, dt) {
   const dx = p.tx - p.x, dy = p.ty - p.y, dist = Math.hypot(dx, dy);
@@ -966,7 +995,11 @@ function update(dt) {
       resetDragOrigin();
     }
   }
-  if (S.state === 'serve') {
+  if (S.state === 'serve' && M.server === 1 && S.online) {   // your friend's toss, as their phone reports it
+    S.toss = NET.oppToss;
+    if (S.toss < 0) holdBall();
+    else { ball.x = cpu.x + 0.15; ball.y = cpu.y - 0.25; ball.z = Math.max(0, 1.0 + 6 * S.toss - 4.9 * S.toss * S.toss); }
+  } else if (S.state === 'serve') {
     if (S.toss < 0) {
       holdBall();
       if (M.server === 1) { S.timer -= dt; if (S.timer <= 0) S.toss = 0; }
@@ -990,7 +1023,7 @@ function update(dt) {
       }
     }
   }
-  if (S.state === 'rally' && !ball.dead) {
+  if (S.state === 'rally' && !ball.dead && !S.online) {
     if (ball.lastHitter === 'p') {
       if (!cpu.plan) { cpu.react -= dt; if (cpu.react <= 0) cpu.plan = planIntercept(); }
       if (cpu.plan) {
@@ -1002,7 +1035,9 @@ function update(dt) {
     }
   }
   if (!(S.state === 'serve' && M.server === 0)) moveToward(player, P_SPEED, dt);
-  if (!(S.state === 'serve' && M.server === 1)) moveToward(cpu, D().speed, dt);
+  if (S.online) moveToward(cpu, 14, dt);
+  else if (!(S.state === 'serve' && M.server === 1)) moveToward(cpu, D().speed, dt);
+  if (S.online) netTick();
   if (player.swingT >= 0) { player.swingT += dt; if (player.swingT > SWING_WIN) { player.swingT = -1; resetDragOrigin(); if (!player.connected) player.cool = Math.max(player.cool, 0.25); } } // a whiff costs recovery time
   if (player.cool > 0) player.cool -= dt;
   player.swing = player.swing > 0 ? player.swing - dt * 3.2 : 0;
@@ -1143,6 +1178,8 @@ function requestWake() {
 }
 function startMatch() {
   initAudio();
+  if (S.online || NET.game) leaveOnline();
+  $('nameC').textContent = 'CPU';
   Object.assign(M, { games: [0, 0], pts: [0, 0], server: 0, over: false, winner: -1 });
   S.mode = 'play'; S.paused = false; S.second = false; S.tips = 0;
   show('menu', false); show('end', false); show('pause', false);
@@ -1153,8 +1190,10 @@ function startMatch() {
 function finishMatch() {
   S.mode = 'end';
   const won = M.winner === 0;
-  $('endEyebrow').textContent = `${DIFFS[S.diff].name} opponent`;
-  $('endTitle').textContent = won ? 'You win the set' : 'CPU takes the set';
+  $('endEyebrow').textContent = S.online ? 'Match with a friend' : `${DIFFS[S.diff].name} opponent`;
+  $('endTitle').textContent = won ? 'You win the set' : S.online ? 'Your friend takes the set' : 'CPU takes the set';
+  $('againBtn').textContent = S.online ? 'Rematch' : 'Play again';
+  $('menuBtn').textContent = S.online ? 'Leave match' : 'Change opponent';
   $('endScore').textContent = `${M.games[0]}–${M.games[1]}`;
   if (won) S.cheer = 4;
   show('end', true); setHint();
@@ -1162,9 +1201,10 @@ function finishMatch() {
 }
 function pauseGame() {
   if (S.mode !== 'play' || S.paused) return;
+  if (S.online) { show('pause', true); $('resumeBtn').focus(); return; }   // an online match keeps running
   S.paused = true; drag = null; player.charge = null; show('pause', true); setHint();
 }
-function resumeGame() { S.paused = false; show('pause', false); setHint(); initAudio(); }
+function resumeGame() { if (S.online) { show('pause', false); return; } S.paused = false; show('pause', false); setHint(); initAudio(); }
 function setDiff(d) {
   S.diff = d;
   [0, 1, 2].forEach(i => $('d' + i).setAttribute('aria-pressed', String(i === d)));
@@ -1172,18 +1212,213 @@ function setDiff(d) {
 }
 [0, 1, 2].forEach(i => $('d' + i).addEventListener('click', () => setDiff(i)));
 $('playBtn').addEventListener('click', startMatch);
-$('againBtn').addEventListener('click', startMatch);
-$('menuBtn').addEventListener('click', () => { S.mode = 'menu'; show('end', false); show('menu', true); });
+$('againBtn').addEventListener('click', () => { if (S.online && oppPeer()) startOnline(Date.now(), true); else if (S.online) { leaveOnline(); openOnline(); } else startMatch(); });
+$('menuBtn').addEventListener('click', () => { if (S.online || NET.game) leaveOnline(); S.mode = 'menu'; show('end', false); show('menu', true); });
 $('pauseBtn').addEventListener('click', pauseGame);
 $('resumeBtn').addEventListener('click', resumeGame);
-$('quitBtn').addEventListener('click', () => { S.mode = 'menu'; S.paused = false; show('pause', false); show('menu', true); hideCall(); setHint(); });
+$('quitBtn').addEventListener('click', () => { if (S.online || NET.game) leaveOnline(); S.mode = 'menu'; S.paused = false; show('pause', false); show('menu', true); hideCall(); setHint(); });
 $('soundBtn').addEventListener('click', () => {
   S.sound = !S.sound; $('soundBtn').textContent = `Sound: ${S.sound ? 'on' : 'off'}`;
   try { localStorage.setItem('gcr-sound', S.sound ? '1' : '0'); } catch (e) {}
 });
-document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && !S.online) pauseGame(); });
 window.addEventListener('keydown', e => { if (e.key === 'Escape' || e.key === 'p') { S.paused ? resumeGame() : pauseGame(); } });
 window.addEventListener('resize', fit);
+
+// ---------- Online play ----------
+// Built on the artifact `room` capability, presence only: each phone publishes its own state
+// (position, swing count, toss, its latest shot, its latest ruling) and reads its friend's.
+// Each phone uses its own frame, with itself at the bottom; the other side is mirrored on arrival.
+// The phone the ball is heading to rules on it (hit, out, net, winner, fault), so your own
+// timing never waits on the network.
+const NET = { room: null, user: null, game: null, role: null, code: null, ep: 0,
+              shotN: 0, ptN: 0, swN: 0, seenShot: 0, seenPt: 0, oppSw: null, oppToss: -1, goneAt: 0, names: {} };
+const num = v => typeof v === 'number' && isFinite(v);
+const r3 = v => Math.round(v * 1000) / 1000;
+async function initNet() {
+  try {
+    if (!window.claude || typeof window.claude.use !== 'function') { renderLobby(); return; }
+    const room = await window.claude.use('room');
+    if (!room) { renderLobby(); return; }
+    NET.room = room;
+    try { NET.user = await window.claude.use('user'); } catch (e) { NET.user = null; }
+    room.onPeers(renderLobby, () => { NET.room = null; renderLobby(); });
+  } catch (e) { NET.room = null; }
+  renderLobby();
+}
+function openOnline() { show('menu', false); show('end', false); show('online', true); renderLobby(); }
+function lobbyHosts() {
+  if (!NET.room) return [];
+  return NET.room.peers().filter(p => !p.sameTab && p.presence && typeof p.presence.host === 'string' && /^[a-z0-9]{4}$/.test(p.presence.host));
+}
+function renderLobby() {
+  const status = $('onlineStatus'), list = $('lobbyList'), host = $('hostBtn');
+  if (!NET.room) {
+    status.textContent = 'Online play works when this game is opened from its claude.ai link while you are signed in.';
+    host.hidden = true; list.replaceChildren(); return;
+  }
+  host.hidden = !!NET.game;
+  const hosts = NET.game ? [] : lobbyHosts();
+  if (NET.game && NET.role === 'host') status.textContent = 'Waiting for your friend to join. Keep this screen open.';
+  else if (NET.game) status.textContent = 'Joining…';
+  else if (hosts.length) status.textContent = 'Tap a match to join it, or host your own.';
+  else status.textContent = 'Nobody is waiting yet. Host a match, then ask your friend to open the game and join.';
+  list.replaceChildren(...hosts.map(p => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn'; b.dataset.code = p.presence.host;
+    b.textContent = p.isMe ? 'Join your other tab' : 'Join ' + (NET.names[p.by] || 'a waiting player');
+    b.addEventListener('click', () => joinMatch(p.presence.host));
+    return b;
+  }));
+  const ids = hosts.map(p => p.by).filter(id => id && !(id in NET.names));
+  if (ids.length && NET.user && NET.user.profiles) {
+    ids.forEach(id => { NET.names[id] = ''; });
+    NET.user.profiles(ids).then(ps => {
+      ids.forEach(id => { NET.names[id] = (ps && ps[id] && ps[id].name) || ''; });
+      renderLobby();
+    }).catch(() => {});
+  }
+}
+async function enterGame(code) {
+  if (NET.game) { try { await NET.game.leave(); } catch (e) {} NET.game = null; }
+  try { NET.game = await NET.room.join('gcr-' + code); }
+  catch (e) { NET.game = null; $('onlineStatus').textContent = 'That match could not be opened. Try again.'; return false; }
+  NET.code = code;
+  NET.game.onPeers(onGamePeers, () => { if (S.online) endOnline('The connection to your friend was lost.'); else { NET.game = null; renderLobby(); } });
+  NET.game.presence({ ep: 0, shot: null, pt: null, go: null }).catch(() => {});
+  return true;
+}
+async function hostMatch() {
+  if (!NET.room) return;
+  initAudio();
+  const code = Math.random().toString(36).slice(2, 6).padEnd(4, '0');
+  NET.role = 'host';
+  if (!(await enterGame(code))) return;
+  NET.room.presence({ host: code }).catch(() => {});
+  renderLobby();
+}
+async function joinMatch(code) {
+  if (!NET.room) return;
+  initAudio();
+  NET.role = 'guest';
+  if (!(await enterGame(code))) return;
+  NET.room.presence({ host: null }).catch(() => {});
+  renderLobby();
+}
+function oppPeer() { return NET.game ? NET.game.peers().find(p => !p.sameTab) || null : null; }
+function onGamePeers() {
+  const opp = oppPeer();
+  if (!opp) return;
+  handleOpp(opp.presence || {});
+  if (NET.role === 'host' && !S.online && !NET.ep) startOnline(Date.now(), true);
+}
+function netSend(patch) { if (NET.game) NET.game.presence(patch).catch(() => {}); }
+function startOnline(ep, iStarted) {
+  initAudio();
+  S.online = true; NET.ep = ep; NET.shotN = 0; NET.ptN = 0; NET.seenShot = 0; NET.seenPt = 0; NET.goneAt = 0; NET.oppToss = -1;
+  const opp = oppPeer();
+  NET.oppSw = opp && opp.presence ? opp.presence.sw : null;
+  netSend(iStarted ? { go: ep, ep, shot: null, pt: null } : { ep, shot: null, pt: null });
+  if (NET.room) NET.room.presence({ host: null }).catch(() => {});
+  Object.assign(M, { games: [0, 0], pts: [0, 0], server: iStarted ? 0 : 1, over: false, winner: -1 });
+  S.mode = 'play'; S.paused = false; S.second = false; S.tips = 0;
+  ['menu', 'end', 'pause', 'online'].forEach(id => show(id, false));
+  $('nameC').textContent = 'Them';
+  hideCall(); setupPoint(); requestWake();
+}
+function leaveOnline() {
+  S.online = false; NET.ep = 0; NET.role = null;
+  if (NET.game) { NET.game.leave().catch(() => {}); NET.game = null; }
+  if (NET.room) NET.room.presence({ host: null }).catch(() => {});
+  $('nameC').textContent = 'CPU';
+}
+function endOnline(msg) {
+  leaveOnline();
+  S.mode = 'end'; hideCall();
+  $('endEyebrow').textContent = 'Match with a friend';
+  $('endTitle').textContent = msg;
+  $('endScore').textContent = `${M.games[0]}–${M.games[1]}`;
+  $('againBtn').textContent = 'Find a new match';
+  $('menuBtn').textContent = 'Back to menu';
+  ['pause', 'online'].forEach(id => show(id, false));
+  show('end', true); setHint();
+}
+function netTick() {
+  netSend({ x: r3(player.x), y: r3(player.y),
+            toss: S.state === 'serve' && M.server === 0 ? r3(S.toss) : -1 });
+  if (oppPeer()) NET.goneAt = 0;
+  else if (!NET.goneAt) NET.goneAt = S.clock;
+  else if (S.clock - NET.goneAt > 6) endOnline('Your friend left the match');
+}
+function netSwing() { if (S.online) { NET.swN++; netSend({ sw: NET.swN, sd: player.side }); } }
+function netShot() {
+  NET.shotN++;
+  netSend({ shot: { ep: NET.ep, n: NET.shotN, x: r3(ball.x), y: r3(ball.y), z: r3(ball.z),
+                    vx: r3(ball.vx), vy: r3(ball.vy), vz: r3(ball.vz), srv: !!ball.isServe } });
+}
+function netPoint(kind, winner, reason) {
+  NET.ptN++;
+  netSend({ pt: { ep: NET.ep, n: NET.ptN, kind, w: winner === 'p' ? 'me' : 'you', reason, srv: !!ball.isServe,
+                  g: M.games.slice(), p: M.pts.slice(), s: M.server === 0 ? 'me' : 'you', sec: S.second,
+                  over: M.over, mw: M.winner === 0 ? 'me' : M.winner === 1 ? 'you' : null } });
+}
+function handleOpp(pr) {
+  if (num(pr.go) && pr.go > NET.ep && NET.game) { startOnline(pr.go, false); return; }
+  if (!S.online || pr.ep !== NET.ep) return;
+  if (num(pr.x) && num(pr.y)) {          // mirror into my frame
+    cpu.tx = clamp(-pr.x, -(DHW + 2.5), DHW + 2.5);
+    cpu.ty = clamp(L - pr.y, NET_Y + 0.7, L + 4.5);
+  }
+  if (pr.sw !== NET.oppSw && num(pr.sw)) { NET.oppSw = pr.sw; cpu.swing = 1; cpu.side = pr.sd === 1 ? -1 : 1; }
+  NET.oppToss = num(pr.toss) ? clamp(pr.toss, -1, 2) : -1;
+  const pt = pr.pt, sh = pr.shot;
+  if (pt && pt.ep === NET.ep && num(pt.n) && pt.n > NET.seenPt) { NET.seenPt = pt.n; applyPoint(pt); }
+  if (sh && sh.ep === NET.ep && num(sh.n) && sh.n > NET.seenShot) { NET.seenShot = sh.n; applyShot(sh); }
+}
+function applyShot(sh) {
+  if (![sh.x, sh.y, sh.z, sh.vx, sh.vy, sh.vz].every(num)) return;
+  if (S.state === 'over' && !S.faultOnly && M.over) return;
+  Object.assign(ball, { x: clamp(-sh.x, -15, 15), y: clamp(L - sh.y, -10, L + 10), z: clamp(sh.z, 0, 6),
+                        vx: clamp(-sh.vx, -40, 40), vy: clamp(-sh.vy, -40, 40), vz: clamp(sh.vz, -40, 40),
+                        lastHitter: 'c', bounces: 0, rolling: false, dead: false, reach: null, mark: null,
+                        frozen: 0, froze: false, isServe: !!sh.srv, trail: [] });
+  ball.land = predictLand();
+  ball.landOut = !isIn(ball.land.x, ball.land.y, 'p');
+  S.state = 'rally'; S.toss = -1;
+  sfx.hit(false);
+  setHint();
+}
+function applyPoint(pt) {
+  const before = M.games.slice();
+  if (Array.isArray(pt.g) && Array.isArray(pt.p) && [pt.g[0], pt.g[1], pt.p[0], pt.p[1]].every(num)) {
+    M.games = [pt.g[1], pt.g[0]]; M.pts = [pt.p[1], pt.p[0]];
+  }
+  M.server = pt.s === 'me' ? 1 : 0;
+  M.over = !!pt.over; M.winner = pt.mw === 'me' ? 1 : pt.mw === 'you' ? 0 : -1;
+  ball.dead = true; ball.frozen = 0;
+  S.state = 'over'; S.faultOnly = false;
+  if (pt.kind === 'fault') {
+    S.second = true; S.timer = 1.1; S.faultOnly = true;
+    showCall('Fault', 'Second serve', false); sfx.net();
+  } else {
+    S.second = false; S.timer = 1.9;
+    const iWon = pt.w === 'you';
+    const reasons = { Out: 'Out', Net: 'Net', 'Double fault': 'Double fault', Winner: 'Winner' };
+    let big = reasons[pt.reason] || (iWon ? 'Point' : 'Missed');
+    if (big === 'Winner') big = pt.srv ? 'Ace' : iWon ? 'Winner' : 'Missed';
+    let call;
+    if (M.over) call = `Game, set and match, ${M.winner === 0 ? 'you' : 'them'}`;
+    else if (M.games[0] !== before[0] || M.games[1] !== before[1]) call = `Game ${M.games[0] > before[0] ? 'you' : 'them'} · ${M.games[0]}–${M.games[1]}`;
+    else call = scoreCall();
+    showCall(big, call, iWon);
+    S.cheer = iWon ? 1.6 : 0.6;
+    if (iWon) sfx.win(); else sfx.lose();
+  }
+  renderBoard(); setHint();
+}
+$('friendBtn').addEventListener('click', openOnline);
+$('hostBtn').addEventListener('click', hostMatch);
+$('onlineBack').addEventListener('click', () => { leaveOnline(); show('online', false); show('menu', true); });
 
 // ---------- Boot ----------
 let last = performance.now();
@@ -1206,11 +1441,12 @@ function start(data) {
     S.mode = 'play'; show('menu', false); setupPoint(); pauseGame();
   }
   renderBoard();
+  initNet();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
   requestAnimationFrame(frame);
 }
 const hot = window.claude && window.claude.hot;
-try { hot && hot.snapshot && hot.snapshot(() => ({ M: JSON.parse(JSON.stringify(M)), diff: S.diff, mode: S.mode })); } catch (e) {}
+try { hot && hot.snapshot && hot.snapshot(() => ({ M: JSON.parse(JSON.stringify(M)), diff: S.diff, mode: S.online ? 'menu' : S.mode })); } catch (e) {}
 if (hot && hot.ready) hot.ready(start); else start((hot && hot.data) || {});
 })();
 </script>
