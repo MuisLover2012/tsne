@@ -109,6 +109,14 @@ body {
 }
 #callSmall:empty { display: none; }
 
+#tag {
+  position: fixed; transform: translate(-50%, -100%); pointer-events: none;
+  font-family: var(--display); font-weight: 700; font-size: 20px; text-transform: uppercase; white-space: nowrap;
+  color: var(--chalk); text-shadow: 2px 2px 0 var(--ink), -2px -2px 0 var(--ink), 2px -2px 0 var(--ink), -2px 2px 0 var(--ink);
+  opacity: 0; transition: opacity .1s steps(2);
+}
+#tag.show { opacity: 1; }
+#tag.good { color: var(--ball); }
 #hint {
   align-self: center; text-align: center;
   font-family: var(--display); font-size: 16px; font-weight: 600; color: var(--chalk);
@@ -196,6 +204,7 @@ body {
   <div id="hint"></div>
 </div>
 
+<div id="tag" aria-hidden="true"></div>
 <div id="call" aria-live="assertive"><div id="callBig"></div><div id="callSmall"></div></div>
 
 <div id="menu" class="overlay">
@@ -215,9 +224,10 @@ body {
     </div>
     <dl class="how">
       <dt>Move</dt><dd>Drag anywhere on the screen. Your player follows your finger.</dd>
-      <dt>Hit</dt><dd>Your racket swings by itself when the ball reaches you.</dd>
-      <dt>Aim</dt><dd>Flick left or right as you hit. Flick up for a deep, hard shot, hard down for a drop shot.</dd>
-      <dt>Serve</dt><dd>Tap the screen.</dd>
+      <dt>Swing</dt><dd>Flick your finger or tap as the ball reaches you. You can tap with a second finger while you move.</dd>
+      <dt>Timing</dt><dd>Perfect timing hits hardest. Early pulls the ball cross-court, late sends it down the line, and way off can mishit.</dd>
+      <dt>Aim</dt><dd>Your flick aims the shot. Flick up to hit deep, hard down for a drop shot.</dd>
+      <dt>Serve</dt><dd>Tap to toss, then tap again at the top. Two faults lose the point.</dd>
     </dl>
     <div class="actions">
       <button type="button" class="btn primary" id="playBtn">Play</button>
@@ -362,9 +372,9 @@ function racketSprite(step, frame) {
 }
 
 // ---------- State ----------
-const S = { mode: 'menu', state: 'serve', timer: 0, toss: -1, diff: 1, paused: false, sound: true, tips: 0, cheer: 0, clock: 0 };
+const S = { mode: 'menu', state: 'serve', timer: 0, toss: -1, diff: 1, paused: false, sound: true, tips: 0, cheer: 0, clock: 0, second: false, faultOnly: false };
 const M = { games: [0, 0], pts: [0, 0], server: 0, over: false, winner: -1 };
-const player = { x: 1, y: -0.7, tx: 1, ty: -0.7, swing: 0, side: 1, run: 0, moving: 0 };
+const player = { x: 1, y: -0.7, tx: 1, ty: -0.7, swing: 0, side: 1, run: 0, moving: 0, swingT: -1, cool: 0, aim: null };
 const cpu = { x: -1, y: L + 0.8, tx: -1, ty: L + 0.8, swing: 0, side: -1, run: 0, moving: 0, plan: null, react: 0 };
 const ball = { x: 0, y: 0, z: 1, vx: 0, vy: 0, vz: 0, bounces: 0, lastHitter: null, dead: true, isServe: false,
                rolling: false, land: null, landOut: false, trail: [], mark: null };
@@ -583,12 +593,23 @@ function hideCall() { clearTimeout(callTimer); $('call').classList.remove('show'
 function setHint() {
   let h = '';
   if (S.mode === 'play' && !S.paused) {
-    if (S.state === 'serve' && M.server === 0 && S.toss < 0) h = 'Tap to serve';
-    else if (S.state === 'serve' && M.server === 1 && S.tips < 3) h = 'Drag to move into the ball';
-    else if (S.state === 'rally' && S.tips < 3) h = 'Flick sideways as you hit to aim';
+    if (S.state === 'serve' && M.server === 0) h = S.toss < 0 ? (S.second ? 'Second serve: tap to toss' : 'Tap to toss') : 'Tap again at the top';
+    else if (S.state === 'serve' && M.server === 1 && S.tips < 3) h = 'Get ready to return';
+    else if (S.state === 'rally' && S.tips < 4) h = 'Flick or tap to swing as the ball arrives';
   }
   const el = $('hint');
   if (el.textContent !== h) el.textContent = h;
+}
+let tagTimer = 0;
+function showTag(text, good) {
+  const el = $('tag');
+  const [fx, fy] = pp(player.x, player.y, 0);
+  el.style.left = (OFFX + fx * SCALE) + 'px';
+  el.style.top = (OFFY + (fy - 30) * SCALE) + 'px';
+  el.textContent = text; el.classList.toggle('good', !!good);
+  el.classList.add('show');
+  clearTimeout(tagTimer);
+  tagTimer = setTimeout(() => el.classList.remove('show'), 750);
 }
 
 // ---------- Physics helpers ----------
@@ -619,7 +640,7 @@ function isIn(x, y, side) {
 function launch(who, tx, ty, pace, clear) {
   const v = shoot(ball.x, ball.y, ball.z, tx, ty, pace, clear);
   ball.vx = v.vx; ball.vy = v.vy; ball.vz = v.vz;
-  ball.lastHitter = who; ball.bounces = 0; ball.rolling = false; ball.mark = null;
+  ball.lastHitter = who; ball.bounces = 0; ball.rolling = false; ball.mark = null; ball.reach = null;
   ball.land = predictLand();
   ball.landOut = !isIn(ball.land.x, ball.land.y, who === 'p' ? 'c' : 'p');
   if (who === 'p') { cpu.plan = null; cpu.react = D().react; }
@@ -642,40 +663,66 @@ function planIntercept() {
 }
 
 // ---------- Input ----------
+// One finger drags to move. A swing is a quick flick of that finger, a short tap,
+// or a tap with a second finger while the first keeps moving.
 let drag = null;
 const samples = [];
+const FLICK_SPEED = 950, FLICK_DIST = 22;
+const SWING_WIN = 0.26, SWING_IDEAL = 0.1, SWING_CD = 0.45;
 function serveLocked() { return S.state === 'serve' && M.server === 0; }
+function moveLocked() { return serveLocked() || player.swingT >= 0; }
 function resetDragOrigin() {
   if (!drag) return;
   drag.sx = drag.cx; drag.sy = drag.cy; drag.px = player.x; drag.py = player.y;
 }
 function updateTarget() {
   if (!drag) return;
-  if (serveLocked()) { resetDragOrigin(); return; }
+  if (moveLocked()) { resetDragOrigin(); return; }
   const d = player.y + CAM_Y, gain = 1.35;
   const dxp = (drag.cx - drag.sx) / SCALE, dyp = (drag.cy - drag.sy) / SCALE;
   player.tx = clamp(drag.px + dxp * d / F * gain, -(DHW + 2.2), DHW + 2.2);
   player.ty = clamp(drag.py - dyp * d * d / (CAM_H * F) * gain, -4, NET_Y - 0.7);
 }
-function swipe() {
+function flickVel(win) {
   const now = performance.now();
-  const s = samples.filter(p => now - p.t <= 150);
-  if (s.length < 2) return { ax: 0, ay: 0 };
+  const s = samples.filter(p => now - p.t <= win);
+  if (s.length < 2) return null;
   const a = s[0], b = s[s.length - 1];
-  const dt = Math.max(0.035, (b.t - a.t) / 1000);
-  let ax = clamp((b.x - a.x) / dt / 1100, -1, 1), ay = clamp(-(b.y - a.y) / dt / 1100, -1, 1);
-  if (Math.abs(ax) < 0.12) ax = 0;
-  if (Math.abs(ay) < 0.12) ay = 0;
+  const dt = Math.max(0.016, (b.t - a.t) / 1000);
+  return { vx: (b.x - a.x) / dt, vy: (b.y - a.y) / dt, dist: Math.hypot(b.x - a.x, b.y - a.y) };
+}
+function aimFrom(v) {
+  if (!v) return { ax: 0, ay: 0 };
+  let ax = clamp(v.vx / 1400, -1, 1), ay = clamp(-v.vy / 1400, -1, 1);
+  if (Math.abs(ax) < 0.15) ax = 0;
+  if (Math.abs(ay) < 0.15) ay = 0;
   return { ax, ay };
+}
+function serveTap() {
+  if (S.toss < 0) S.toss = 0;
+  else if (S.toss > 0.12) playerServe();
+  setHint();
+}
+function startSwing(aim) {
+  if (S.mode !== 'play' || S.paused || S.state !== 'rally' || player.cool > 0) return false;
+  player.swingT = 0; player.cool = SWING_CD; player.aim = aim || { ax: 0, ay: 0 }; player.connected = false;
+  player.swing = 1;
+  player.side = (ball.lastHitter === 'c' ? ball.x : player.x + 1) >= player.x ? 1 : -1;
+  player.tx = player.x; player.ty = player.y; resetDragOrigin();   // plant your feet to hit
+  if (ball.reach && S.clock - ball.reach.t < 0.08 && !ball.dead) playerHit(ball.reach.dx, 1); // only just late
+  return true;
 }
 document.addEventListener('pointerdown', e => {
   if (S.mode !== 'play' || S.paused) return;
   if (e.target.closest && e.target.closest('button, .overlay')) return;
   e.preventDefault();
   initAudio();
-  if (S.state === 'serve' && M.server === 0 && S.toss < 0) { S.toss = 0; setHint(); }
+  let served = false;
+  if (serveLocked()) { serveTap(); served = true; }
+  else if (drag && drag.id !== e.pointerId) { startSwing(null); return; }   // second-finger tap
   if (!drag) {
-    drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, cx: e.clientX, cy: e.clientY, px: player.tx, py: player.ty };
+    drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, cx: e.clientX, cy: e.clientY, ox: e.clientX, oy: e.clientY,
+             px: player.tx, py: player.ty, t0: performance.now(), moved: 0, flicked: false, served };
     samples.length = 0;
   }
   samples.push({ t: performance.now(), x: e.clientX, y: e.clientY });
@@ -683,19 +730,37 @@ document.addEventListener('pointerdown', e => {
 window.addEventListener('pointermove', e => {
   if (!drag || e.pointerId !== drag.id) return;
   drag.cx = e.clientX; drag.cy = e.clientY;
+  drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.ox, e.clientY - drag.oy));
   samples.push({ t: performance.now(), x: e.clientX, y: e.clientY });
   while (samples.length > 40) samples.shift();
+  const v = flickVel(90);
+  if (v) {
+    const sp = Math.hypot(v.vx, v.vy);
+    if (!drag.flicked && v.dist > FLICK_DIST && sp > FLICK_SPEED && S.state === 'rally') {
+      if (startSwing(aimFrom(v))) drag.flicked = true;
+    } else if (sp < 300) drag.flicked = false;
+  }
   updateTarget();
 });
-function endDrag(e) { if (drag && e.pointerId === drag.id) drag = null; }
+function endDrag(e) {
+  if (!drag || e.pointerId !== drag.id) return;
+  if (!drag.flicked && !drag.served && performance.now() - drag.t0 < 230 && drag.moved < 14) startSwing(null); // short tap
+  drag = null;
+}
 window.addEventListener('pointerup', endDrag);
 window.addEventListener('pointercancel', endDrag);
 
+// Keyboard: arrows move, Space serves and swings (hold an arrow while swinging to aim).
 const keys = {};
 window.addEventListener('keydown', e => {
   if (S.mode !== 'play' || S.paused) return;
   keys[e.key] = true;
-  if (e.key === ' ' && serveLocked() && S.toss < 0) { initAudio(); S.toss = 0; setHint(); e.preventDefault(); }
+  if (e.key === ' ') {
+    initAudio();
+    if (serveLocked()) serveTap();
+    else startSwing({ ax: (keys.ArrowRight ? 0.8 : 0) - (keys.ArrowLeft ? 0.8 : 0), ay: keys.ArrowUp ? 0.7 : keys.ArrowDown ? -0.9 : 0 });
+    e.preventDefault();
+  }
   if (e.key.startsWith('Arrow')) e.preventDefault();
 });
 window.addEventListener('keyup', e => { keys[e.key] = false; });
@@ -703,7 +768,7 @@ window.addEventListener('keyup', e => { keys[e.key] = false; });
 // ---------- Point flow ----------
 function setupPoint() {
   const deuce = (M.pts[0] + M.pts[1]) % 2 === 0;
-  Object.assign(ball, { dead: false, bounces: 0, lastHitter: null, isServe: true, rolling: false,
+  Object.assign(ball, { dead: false, bounces: 0, lastHitter: null, isServe: true, rolling: false, reach: null,
                         land: null, landOut: false, trail: [], mark: null, vx: 0, vy: 0, vz: 0 });
   if (M.server === 0) {
     player.x = deuce ? 1.0 : -1.0; player.y = -0.7;
@@ -713,8 +778,8 @@ function setupPoint() {
     player.x = deuce ? 2.5 : -2.5; player.y = -0.6;
   }
   player.tx = player.x; player.ty = player.y; cpu.tx = cpu.x; cpu.ty = cpu.y;
-  player.swing = cpu.swing = 0; cpu.plan = null;
-  S.state = 'serve'; S.toss = -1; S.timer = M.server === 1 ? 1.2 : 0;
+  player.swing = cpu.swing = 0; player.swingT = -1; player.cool = 0; cpu.plan = null;
+  S.state = 'serve'; S.toss = -1; S.timer = M.server === 1 ? 1.2 : 0; S.faultOnly = false;
   resetDragOrigin();
   holdBall();
   renderBoard(); setHint();
@@ -723,37 +788,81 @@ function holdBall() {
   const srv = M.server === 0 ? player : cpu;
   ball.x = srv.x + (M.server === 0 ? -0.3 : 0.3); ball.y = srv.y + (M.server === 0 ? 0.2 : -0.2); ball.z = 1.0;
 }
-function serveHit() {
-  const deuce = (M.pts[0] + M.pts[1]) % 2 === 0;
-  let tx, ty, pace;
-  if (M.server === 0) {
-    tx = (deuce ? -1 : 1) * rand(0.5, HW - 0.45); ty = rand(NET_Y + 2.4, NET_Y + SVC - 0.35); pace = 22;
-    player.swing = 1; player.side = 1;
-  } else {
-    tx = (deuce ? 1 : -1) * rand(0.5, HW - 0.45); ty = rand(NET_Y - SVC + 0.35, NET_Y - 2.4); pace = D().serve;
-    cpu.swing = 1; cpu.side = -1;
+function inServiceBox(x, y, server) {
+  const deuce = (M.pts[0] + M.pts[1]) % 2 === 0, e = 0.05;
+  if (server === 'p') {
+    if (y < NET_Y || y > NET_Y + SVC + e) return false;
+    return deuce ? (x >= -HW - e && x <= e) : (x >= -e && x <= HW + e);
   }
-  launch(M.server === 0 ? 'p' : 'c', tx, ty, pace, 0.12);
-  ball.isServe = true;
-  S.state = 'rally';
+  if (y > NET_Y || y < NET_Y - SVC - e) return false;
+  return deuce ? (x >= -e && x <= HW + e) : (x >= -HW - e && x <= e);
+}
+function serveTarget(who, isFault) {
+  const deuce = (M.pts[0] + M.pts[1]) % 2 === 0;
+  const dir = who === 'p' ? (deuce ? -1 : 1) : (deuce ? 1 : -1);   // diagonal box
+  const fwd = who === 'p' ? 1 : -1;
+  if (!isFault) return { tx: dir * rand(0.5, HW - 0.45), ty: NET_Y + fwd * rand(2.4, SVC - 0.35) };
+  const r = Math.random();
+  if (r < 0.4) return { tx: dir * rand(0.6, HW - 0.5), ty: NET_Y + fwd * rand(SVC + 0.3, SVC + 1.6) };   // long
+  if (r < 0.7) return { tx: dir * rand(HW + 0.25, HW + 1.2), ty: NET_Y + fwd * rand(2.5, SVC - 0.5) }; // wide
+  return { tx: dir * rand(0.5, HW - 0.5), ty: NET_Y + fwd * 0.3, net: true };                         // into the net
+}
+function playerServe() {
+  const t = S.toss;                          // the top of the toss (about 0.6s) is the sweet spot
+  const err = Math.min(1, Math.abs(t - 0.6) / 0.3);
+  const pFault = S.second ? 0.04 + 0.5 * err : 0.12 + 0.85 * err;
+  const tg = serveTarget('p', Math.random() < pFault);
+  const pace = S.second ? 14 + 3 * (1 - err) : 17 + 8 * (1 - err);
+  player.swing = 1; player.side = 1;
+  launch('p', tg.tx, tg.ty, pace, tg.net ? -99 : 0.12);
+  ball.isServe = true; S.state = 'rally';
+  showTag(err < 0.2 ? 'Perfect' : t < 0.6 ? 'Early' : 'Late', err < 0.2);
   setHint();
 }
-function playerHit(dx) {
-  const sw = swipe();
-  let tx, ty, pace, clear = 0.25;
-  const spread = 0.35 + 0.55 * Math.abs(sw.ax);
-  tx = sw.ax * (HW - 0.3) + dx * 0.45 + rand(-0.6, 0.6) * spread;
-  if (sw.ay < -0.8) {
-    ty = NET_Y + rand(1.6, 3.2); pace = 9; tx *= 0.7; clear = 0.15;
-  } else if (player.y > NET_Y - 4.5 && ball.z > 1.6) {
-    ty = rand(L - 7, L - 3); pace = 26; clear = 0.1;
+function cpuServe() {
+  const d = D();
+  const tg = serveTarget('c', Math.random() < (S.second ? d.err * 0.35 : d.err * 1.6));
+  cpu.swing = 1; cpu.side = -1;
+  launch('c', tg.tx, tg.ty, S.second ? d.serve * 0.8 : d.serve, tg.net ? -99 : 0.12);
+  ball.isServe = true; S.state = 'rally';
+  setHint();
+}
+function fault() {
+  if (ball.dead) return;
+  const server = M.server === 0 ? 'p' : 'c';
+  if (S.second) { endPoint(server === 'p' ? 'c' : 'p', 'Double fault'); return; }
+  ball.dead = true; S.second = true; S.state = 'over'; S.timer = 1.1; S.faultOnly = true;
+  showCall('Fault', 'Second serve', false); sfx.net();
+  setHint();
+}
+function playerHit(dx, e) {
+  // e: -1 swung early ... 0 perfect ... +1 swung late
+  const aim = player.aim || { ax: 0, ay: 0 };
+  const q = 1 - Math.abs(e);
+  const side = dx >= 0 ? 1 : -1;
+  player.side = side; ball.reach = null; player.connected = true;
+  let tx, ty, pace, clear = 0.25, tag;
+  if (Math.abs(e) > 0.8 && Math.random() < 0.4) {         // framed it
+    tag = 'Mishit';
+    tx = side * rand(1.5, HW + 2.5); pace = rand(8, 12);
+    if (Math.random() < 0.5) { ty = rand(L + 0.3, L + 3); }
+    else { ty = NET_Y + 0.3; clear = -99; }
   } else {
-    ty = L - 3.3 + sw.ay * 2.3 + rand(-1.3, 1.25);
-    pace = 17 + Math.max(0, sw.ay) * 6 + rand(-1, 1);
+    tag = q > 0.7 ? 'Perfect' : e > 0 ? 'Late' : 'Early';
+    // early pulls the ball across your body, late pushes it the other way
+    tx = aim.ax * (HW - 0.3) + side * e * 2.4 + rand(-1, 1) * (0.3 + 1.0 * (1 - q));
+    if (aim.ay < -0.6) {
+      ty = NET_Y + rand(1.6, 3.2); pace = 9; tx *= 0.7; clear = 0.15; if (q > 0.7) tag = 'Drop shot';
+    } else if (player.y > NET_Y - 4.5 && ball.z > 1.6) {
+      ty = rand(L - 7, L - 3); pace = 20 + 6 * q; clear = 0.1; if (q > 0.7) tag = 'Smash';
+    } else {
+      ty = L - 3.3 + aim.ay * 2.2 + rand(-1, 1) * (0.8 + 0.8 * (1 - q));
+      pace = 13 + 6 * q + Math.max(0, aim.ay) * 5 + rand(-1, 1);
+    }
   }
-  player.side = dx >= 0 ? 1 : -1; player.swing = 1;
   ball.isServe = false;
-  launch('p', clamp(tx, -(HW + 1.8), HW + 1.8), ty, pace, clear);
+  launch('p', clamp(tx, -(HW + 2.5), HW + 2.5), ty, pace, clear);
+  showTag(tag, tag === 'Perfect' || tag === 'Smash' || tag === 'Drop shot');
   S.tips++;
 }
 function cpuHit(dx) {
@@ -778,7 +887,7 @@ function cpuHit(dx) {
 function endPoint(winner, reason) {
   if (ball.dead) return;
   ball.dead = true;
-  S.state = 'over'; S.timer = 1.9;
+  S.state = 'over'; S.timer = 1.9; S.second = false; S.faultOnly = false;
   const wi = winner === 'p' ? 0 : 1;
   const call = award(wi);
   let big = reason;
@@ -795,8 +904,12 @@ function onBounce() {
   if (!hitter) return;
   const recv = hitter === 'p' ? 'c' : 'p';
   if (ball.bounces === 0) {
-    if (side === hitter) { endPoint(recv, 'Net'); return; }
-    if (!isIn(ball.x, ball.y, side)) { ball.mark = { x: ball.x, y: ball.y, t: 1.6 }; endPoint(recv, 'Out'); return; }
+    if (ball.isServe) {
+      if (!inServiceBox(ball.x, ball.y, hitter)) { ball.mark = { x: ball.x, y: ball.y, t: 1.2 }; fault(); return; }
+    } else {
+      if (side === hitter) { endPoint(recv, 'Net'); return; }
+      if (!isIn(ball.x, ball.y, side)) { ball.mark = { x: ball.x, y: ball.y, t: 1.6 }; endPoint(recv, 'Out'); return; }
+    }
     ball.bounces = 1;
     ball.mark = { x: ball.x, y: ball.y, t: 0.7 };
   } else {
@@ -808,7 +921,7 @@ function tryHit(who, prevY) {
   if (ball.dead || ball.lastHitter === who || !ball.lastHitter) return;
   if (ball.bounces > 1) return;
   if (ball.isServe && ball.bounces === 0) return;
-  if (ball.bounces === 0 && ball.landOut) return;
+  if (ball.bounces === 0 && ball.landOut && who === 'c') return; // the CPU lets balls going out fly past
   const p = who === 'p' ? player : cpu;
   const line = who === 'p' ? p.y + 0.3 : p.y - 0.3;
   const crossed = who === 'p' ? (ball.vy < 0 && prevY > line && ball.y <= line)
@@ -817,7 +930,9 @@ function tryHit(who, prevY) {
   const dx = ball.x - p.x;
   if (Math.abs(dx) > (who === 'p' ? P_REACH : C_REACH)) return;
   if (ball.z > (who === 'p' ? 3.1 : 2.7)) return;
-  if (who === 'p') playerHit(dx); else cpuHit(dx);
+  if (who === 'c') { cpuHit(dx); return; }
+  if (player.swingT >= 0 && player.swingT <= SWING_WIN) playerHit(dx, clamp((SWING_IDEAL - player.swingT) / 0.1, -1, 1));
+  else ball.reach = { t: S.clock, dx };                         // in reach but not swinging yet
 }
 function physics(dt) {
   const prevY = ball.y;
@@ -831,7 +946,7 @@ function physics(dt) {
   if ((prevY - NET_Y) * (ball.y - NET_Y) < 0 && Math.abs(ball.x) < POST_X && ball.z < netHeight(ball.x)) {
     ball.y = prevY; ball.vy *= -0.12; ball.vx *= 0.3; ball.vz = Math.min(ball.vz, 0);
     sfx.net();
-    if (!ball.dead) endPoint(ball.lastHitter === 'p' ? 'c' : 'p', 'Net');
+    if (!ball.dead) { if (ball.isServe) fault(); else endPoint(ball.lastHitter === 'p' ? 'c' : 'p', 'Net'); }
   }
   if (ball.z <= 0 && ball.vz < 0) {
     ball.z = 0;
@@ -852,7 +967,7 @@ function moveToward(p, speed, dt) {
 }
 
 function update(dt) {
-  if (!serveLocked()) {
+  if (!moveLocked()) {
     const kx = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
     const ky = (keys.ArrowUp ? 1 : 0) - (keys.ArrowDown ? 1 : 0);
     if (kx || ky) {
@@ -871,7 +986,8 @@ function update(dt) {
       ball.x = srv.x + (M.server === 0 ? -0.15 : 0.15);
       ball.y = srv.y + (M.server === 0 ? 0.25 : -0.25);
       ball.z = 1.0 + 6 * S.toss - 4.9 * S.toss * S.toss;
-      if (S.toss >= 0.6) serveHit();
+      if (M.server === 1 && S.toss >= 0.6) cpuServe();
+      else if (M.server === 0 && S.toss > 1.1) { S.toss = -1; fault(); }   // let the toss drop
     }
   } else {
     const steps = 4, h = dt / steps;
@@ -897,6 +1013,8 @@ function update(dt) {
   }
   if (!(S.state === 'serve' && M.server === 0)) moveToward(player, P_SPEED, dt);
   if (!(S.state === 'serve' && M.server === 1)) moveToward(cpu, D().speed, dt);
+  if (player.swingT >= 0) { player.swingT += dt; if (player.swingT > SWING_WIN) { player.swingT = -1; resetDragOrigin(); if (!player.connected) player.cool = Math.max(player.cool, 0.4); } } // a whiff costs recovery time
+  if (player.cool > 0) player.cool -= dt;
   player.swing = player.swing > 0 ? player.swing - dt * 3.2 : 0;
   cpu.swing = cpu.swing > 0 ? cpu.swing - dt * 3.2 : 0;
   if (ball.mark) { ball.mark.t -= dt; if (ball.mark.t <= 0) ball.mark = null; }
@@ -990,6 +1108,14 @@ function drawMarkers() {
     const [mx, my] = pp(ball.mark.x, ball.mark.y, 0);
     if (ball.mark.t > 0.2 || Math.floor(S.clock * 10) % 2) pRing(mx, my, 3, 1.5, PAL.w, false);
   }
+  // timing cue: a ring at your feet turns lime when it is time to swing (Easy and Club)
+  if (D().marker && S.state === 'rally' && !ball.dead && ball.lastHitter === 'c' && ball.vy < 0 && !(ball.isServe && ball.bounces === 0)) {
+    const tc = (ball.y - (player.y + 0.3)) / -ball.vy;
+    if (tc > 0 && tc < 0.4 && Math.abs(ball.x + ball.vx * tc - player.x) < P_REACH && (ball.bounces === 1 || !ball.landOut)) {
+      const [fx, fy] = pp(player.x, player.y, 0);
+      pRing(fx, fy, 8, 2.5, tc <= 0.17 ? PAL.l : PAL.w, tc > 0.17);
+    }
+  }
   if (D().marker && S.state === 'rally' && !ball.dead && ball.lastHitter === 'c' && ball.bounces === 0 && ball.land && !ball.landOut) {
     const [mx, my] = pp(ball.land.x, ball.land.y, 0);
     pRing(mx, my, 4, 2, PAL.y, true);
@@ -1019,7 +1145,7 @@ function requestWake() {
 function startMatch() {
   initAudio();
   Object.assign(M, { games: [0, 0], pts: [0, 0], server: 0, over: false, winner: -1 });
-  S.mode = 'play'; S.paused = false;
+  S.mode = 'play'; S.paused = false; S.second = false; S.tips = 0;
   show('menu', false); show('end', false); show('pause', false);
   hideCall();
   setupPoint();
