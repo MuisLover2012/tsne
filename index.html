@@ -118,6 +118,13 @@ body {
   opacity: 0; transition: opacity .1s steps(2);
 }
 #tag.show { opacity: 1; }
+#bubble {
+  position: fixed; transform: translate(-50%, -100%); pointer-events: none; white-space: nowrap;
+  font-family: var(--display); font-weight: 700; font-size: 16px; color: var(--ink);
+  background: var(--chalk); border: 3px solid var(--ink); padding: 3px 8px; opacity: 0;
+}
+#bubble::after { content: ""; position: absolute; left: 50%; bottom: -9px; margin-left: -4px; border: 6px solid transparent; border-top-color: var(--ink); border-bottom: 0; }
+#bubble.show { opacity: 1; }
 #rally {
   position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(env(safe-area-inset-top, 0px) + 64px);
   font-family: var(--display); font-weight: 700; font-size: 22px; text-transform: uppercase; pointer-events: none;
@@ -340,6 +347,7 @@ body {
 
 <div id="tag" aria-hidden="true"></div>
 <div id="rally" aria-hidden="true"></div>
+<div id="bubble" aria-hidden="true"></div>
 <div id="toast" hidden role="status"><div class="tstar">★</div><div><div class="tlab">Trophy unlocked</div><div class="tname" id="toastName"></div><div class="tdesc" id="toastDesc"></div></div></div>
 <div id="focus" hidden aria-label="Focus meter"><span class="flab">Focus</span><span class="fp"></span><span class="fp"></span><span class="fp"></span></div>
 <div id="call" aria-live="assertive"><div id="callBig"></div><div id="callSmall"></div></div>
@@ -1265,6 +1273,7 @@ function endPoint(winner, reason) {
   renderBoard(); setHint();
   S.cheer = wi === 0 ? 1.6 : 0.6;
   if (wi === 0) sfx.win(); else sfx.lose();
+  sayOpp(wi === 1);
   if ((S.rally || 0) >= 8 || ball.power) { roar(Math.min(1, 0.4 + (S.rally || 0) * 0.04)); S.cheer = 2.4; }
   if (S.online) netPoint('point', winner, reason);
   if (S.career) updateGoalChip();
@@ -1437,6 +1446,19 @@ function roar(vol) {
     f.type = 'lowpass'; f.frequency.value = 900; g.gain.value = 0.18 * vol;
     src.buffer = roarBuf; src.connect(f).connect(g).connect(AC.destination); src.start();
   } catch (e) {}
+}
+let bubbleT = 0;
+function sayOpp(won) {
+  if (!S.career || S.online || S.practice) return;
+  const o = OPPS[S.career.id];
+  if (Math.random() > (o && o.boss ? 0.65 : 0.4)) return;
+  const q = (QUIPS[S.career.id] || QUIPS._)[won ? 0 : 1];
+  const elb = $('bubble');
+  elb.textContent = q[(Math.random() * q.length) | 0];
+  const [fx, fy] = pp(cpu.x, cpu.y, 0);
+  elb.style.left = (OFFX + fx * SCALE) + 'px'; elb.style.top = (OFFY + (fy - 30) * SCALE) + 'px';
+  elb.classList.add('show'); clearTimeout(bubbleT);
+  bubbleT = setTimeout(() => elb.classList.remove('show'), 1300);
 }
 function renderFocus() {
   const el = $('focus');
@@ -1733,6 +1755,24 @@ const OPPS = {
     tip: "This is it. Everything you've learned. Watch the ball, not the man.",
     win: "Forty years she's waited for that. Go on. Go to her." },
 };
+// What opponents shout when they win / lose a point
+const QUIPS = {
+  _: [['Too slow!', 'Got it!', 'Ha!', 'Mine!'], ['Argh!', 'No!', 'Hmph.', 'Lucky!']],
+  pip: [['Steady does it!', 'Sunday special!'], ['Oh, well hit!', 'My knees!']],
+  toby: [['Zoom!', 'Too fast for you!'], ['Whoops!', 'Ugh, again?']],
+  marla: [['My court!', 'Over your head!'], ['Hmph.', 'Not bad, kid.']],
+  hugo: [['Boom. Ace.', 'You watched.'], ['How?!', 'Nobody returns that.']],
+  ines: [['Again.', 'I live here.'], ['Hm.', 'Again!']],
+  rex1: [['Too easy!', 'Is that all?'], ['Lucky shot.', 'Whatever.']],
+  rex2: [['Grass is mine!', 'Too easy!'], ['...Lucky.', 'Okay, okay.']],
+  kenji: [['Net is mine!', 'Volley!'], ['Passed me!', 'Grr.']],
+  sasha: [['Art.', 'Touch.'], ['Crude.', 'Hm.']],
+  theo: [['BOOM!', 'BIG T!'], ['HEY!', 'Not fair!']],
+  lucia: [['It came back.', 'Again?'], ['Nice.', 'Okay!']],
+  odette: [['Short and sweet.', 'Volley!'], ['Ugh, long point.', 'Fine.']],
+  grey: [['...', '...'], ['...', '...']],
+  victor: [['Experience.', 'Patience.'], ['Hm. Good.', 'Bea taught you that.']],
+};
 const TIERS = [
   { id: 'park', name: 'Park Courts', venue: 'park', rules: { toWin: 2, by: 1 }, coins: 40, marker: true, opps: ['pip', 'toby', 'marla'],
     blurb: 'Hard courts, cracked corners, pigeons.',
@@ -1757,7 +1797,7 @@ const INTRO = [
   ['bea', "The summer circuit starts at the park courts. Win there and the doors open one by one: County, Nationals, the Lawn Series. Then here."],
   ['bea', "One finger to move. Another finger taps to swing. Quick taps hit hard, longer holds hit soft."],
   ['bea', "What do they call you?", 'name'],
-  ['bea', "{name}. Good. Bring your own water. We start tomorrow."],
+  ['bea', "{name}. Good. Warm up on the practice court first, there's a bonus in it. Then the park courts. Bring your own water."],
 ];
 const ENDING = [
   ['bea', "{name}. Look at that crowd."],
@@ -1858,7 +1898,7 @@ function mergeCareer(c) {
   const base = newCareer();
   return { ...base, ...c, stats: { ...base.stats, ...(c.stats || {}) }, best: { ...(c.best || {}) }, seen: { ...(c.seen || {}) },
            trophies: { ...(c.trophies || {}) }, endless: { ...base.endless, ...(c.endless || {}) },
-           daily: c.daily || 0, kit: { ...(c.kit || {}) }, owned: Array.isArray(c.owned) ? c.owned.slice() : [] };
+           daily: c.daily || 0, h2h: { ...(c.h2h || {}) }, kit: { ...(c.kit || {}) }, owned: Array.isArray(c.owned) ? c.owned.slice() : [] };
 }
 function saveCareer() {
   CAREER.updated = Date.now();
@@ -2003,7 +2043,8 @@ function renderTour(body) {
       const o = OPPS[id], st = oppState(ti, id);
       const row = el('div', 'opp ' + st);
       const info = el('div', 'oinfo');
-      info.append(el('div', 'oname', o.name + (o.boss ? ' · Boss' : '')), el('div', 'otag', st === 'locked' ? 'Beat the others in this tier first' : o.tag + ' · ' + o.goal.text));
+      const rec = (CAREER.h2h || {})[id];
+      info.append(el('div', 'oname', o.name + (o.boss ? ' · Boss' : '')), el('div', 'otag', st === 'locked' ? 'Beat the others in this tier first' : o.tag + ' · ' + o.goal.text + (rec ? ` · Record ${rec[0]}–${rec[1]}` : '')));
       const right = el('div', 'oright');
       right.append(el('div', 'ostars', stars(CAREER.best[id] || 0)));
       if (st !== 'locked') {
@@ -2088,13 +2129,14 @@ function careerResults() {
   if (won && c.daily) CAREER.daily = todayKey();
   const before = rankFor(CAREER.pts);
   CAREER.coins += coins; CAREER.pts += pts; CAREER.matches++; if (won) CAREER.wins++;
+  if (!special) { CAREER.h2h = CAREER.h2h || {}; const r = CAREER.h2h[c.id] || [0, 0]; r[won ? 0 : 1]++; CAREER.h2h[c.id] = r; }
   if (won && !special) CAREER.best[c.id] = Math.max(prev, n);
   if (c.endless && typeof endlessResult === 'function') endlessResult(won);
   const after = rankFor(CAREER.pts);
   LAST = { won, perfects: MS.perfects, rallyMax: MS.rallyMax, powers: MS.powers || 0, aces: MS.aces, lost: M.games[1], deficit: MS.deficit || 0 };
   saveCareer();
   // results card
-  S.mode = 'end'; hideCall(); updateGoalChip(); renderFocus(); renderRally();
+  S.mode = 'end'; hideCall(); updateGoalChip(); renderFocus(); renderRally(); setHint();
   $('rEyebrow').textContent = 'vs ' + c.name;
   $('rTitle').textContent = won ? 'Victory' : 'Defeat';
   $('rTitle').classList.toggle('good', won);
