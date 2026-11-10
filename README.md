@@ -64,7 +64,7 @@ Your career saves on your device. In the claude.ai version it also saves private
 
 ## Theme song
 
-The theme is an 8-bit arrangement of a recording by the game's creator. See [`music/README.md`](music/README.md).
+The theme is an 8-bit arrangement of a guitar piece by the game's creator. See [`music/README.md`](music/README.md).
 
 ## Quick match
 

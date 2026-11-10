@@ -976,12 +976,17 @@ const sfx = {
   lose() { tone(392, 0.12, 0.08); tone(262, 0.24, 0.08, 'square', 0.12); },
 };
 // ---------- Theme song ----------
-// The Grass Court Rally theme, arranged in 8-bit from the player's own recording: 92 BPM, a melody
-// centred on B, the rising A-E-A-B hook, and an ending that resolves onto C#. The lead is a 25% pulse,
-// arpeggios a 12.5% pulse, the bass a triangle, drums on a noise channel. Times are in eighth notes.
-const THEME = { bpm: 92, lead: [[0,6,71],[8,2,71],[10,2,72],[12,4,71],[16,3,69],[19,3,71],[22,2,73],[24,4,71],[28,1,64],[29,1,66],[30,2,68],[32,3,69],[35,3,76],[38,2,81],[40,6,83],[46,2,81],[48,3,69],[51,1,76],[52,2,76],[54,2,81],[56,6,83],[62,2,80],[64,3,69],[67,3,76],[70,2,78],[72,4,83],[76,2,81],[78,2,80],[80,3,78],[83,3,76],[86,2,73],[88,6,76],[94,2,68],[96,2,71],[98,2,71],[100,2,71],[102,2,74],[104,2,71],[106,2,71],[108,4,68],[112,8,73],[124,2,69],[126,2,71]],
-  chords: ["A", "E", "F#m", "E", "A", "E", "A", "E", "F#m", "E", "D", "E", "Bm", "E", "A", "A"], chordNotes: {"A":[45,[57,61,64,69]],"E":[40,[56,59,64,68]],"F#m":[42,[57,61,66,69]],"D":[38,[57,62,66,69]],"Bm":[47,[59,62,66,71]]} };
+// The Grass Court Rally theme, arranged in 8-bit from the creator's guitar recording: 92 BPM; an intro on E
+// with a B-C# hammer-on; a verse of G# - A - F# - E whose top line slides C - C# - B; a bridge that turns
+// A into A minor before landing on E; and an ending that rings out on F#. The lead plays the guitar's top
+// line an octave up (25% pulse), arpeggios use the guitar's chord shapes (12.5% pulse), the bass is a
+// triangle, and the drums are on a noise channel. Times are in eighth notes; 20 bars loop.
+const THEME = { bpm: 92, eighths: 160, lead: [[0,2,76],[2,2,76],[4,1,73],[5,1,71],[6,1,71],[7,1,71],[8,4,76],[12,1,76],[13,1,71],[14,1,71],[15,1,71],[16,2,72],[18,2,72],[20,1,72],[21,1,71],[22,2,72],[24,2,73],[26,2,73],[28,3,73],[31,1,73],[32,2,73],[34,2,73],[36,1,73],[37,1,71],[38,1,71],[39,2,71],[41,3,71],[44,1,71],[45,2,71],[47,1,71],[48,2,72],[50,2,72],[52,1,72],[53,1,71],[54,2,72],[56,2,73],[58,2,73],[60,3,73],[63,1,73],[64,2,73],[66,2,73],[68,1,73],[69,1,71],[70,1,71],[71,2,71],[73,3,71],[76,1,71],[77,2,71],[79,1,71],[80,1,75],[81,1,72],[82,1,76],[83,2,69],[85,1,72],[86,1,74],[87,1,72],[88,1,69],[89,1,72],[90,1,78],[91,2,71],[93,1,71],[94,1,75],[95,1,75],[96,1,75],[97,1,76],[98,3,76],[101,1,72],[102,1,70],[103,1,72],[104,1,69],[105,1,73],[106,1,72],[107,1,74],[108,2,71],[110,2,71],[112,2,72],[114,2,72],[116,1,72],[117,1,71],[118,2,72],[120,2,73],[122,2,73],[124,3,73],[127,1,73],[128,2,73],[130,2,73],[132,1,73],[133,1,71],[134,1,71],[135,2,71],[137,3,71],[140,1,71],[141,2,71],[143,1,71],[144,2,75],[146,2,75],[148,1,72],[149,1,68],[150,2,72],[152,2,73],[154,2,73],[156,4,78]],
+  chords: [[0,"E"],[16,"G#"],[24,"A"],[28,"F#"],[32,"E"],[48,"G#"],[56,"A"],[60,"F#"],[64,"E"],[80,"G#"],[82,"A"],[85,"Am"],[90,"D"],[91,"E"],[96,"G#"],[97,"A"],[101,"Am"],[107,"D"],[108,"E"],[112,"G#"],[120,"A"],[124,"F#"],[128,"E"],[144,"G#"],[152,"A"],[156,"F#"]],
+  voicings: {"E":[40,[52,56,59,64]],"G#":[44,[51,56,60,63]],"A":[45,[52,57,61,64]],"F#":[42,[49,54,58,61]],"Am":[45,[52,57,60,64]],"D":[38,[50,54,57,62]]},
+  sections: [[0,"intro"],[16,"verse1"],[48,"verse"],[80,"bridge"],[112,"verse"],[144,"ending"]] };
 const MUSIC = { on: false, t: 0, step: 0, gain: null, waves: null, noise: null };
+const atOrBefore = (list, e) => { let v = list[0][1]; for (const [at, x] of list) if (at <= e) v = x; return v; };
 function musicWanted() { return AC && S.sound && !document.hidden && ['hub', 'story', 'menu', 'end'].includes(S.mode); }
 function pulseWave(duty) {                                  // Fourier series of a pulse wave
   const n = 32, re = new Float32Array(n), im = new Float32Array(n);
@@ -1010,7 +1015,7 @@ function mNote(wave, midi, t, dur, vol, vib) {
   g.gain.linearRampToValueAtTime(0.0001, t + dur);
   o.connect(g).connect(MUSIC.gain); o.start(t); o.stop(t + dur + 0.02);
 }
-function mDrum(kind, t) {
+function mDrum(kind, t, vmul) {
   if (kind === 'kick') {
     const o = AC.createOscillator(), g = AC.createGain(); o.setPeriodicWave(MUSIC.waves.p25);
     o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.1);
@@ -1018,27 +1023,31 @@ function mDrum(kind, t) {
     o.connect(g).connect(MUSIC.gain); o.start(t); o.stop(t + 0.14); return;
   }
   const src = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
-  src.buffer = MUSIC.noise; src.playbackRate.value = kind === 'hat' ? 1 : 0.6;
-  f.type = kind === 'hat' ? 'highpass' : 'bandpass'; f.frequency.value = kind === 'hat' ? 7000 : 1800;
-  const len = kind === 'hat' ? 0.035 : kind === 'fill' ? 0.08 : 0.14, vol = kind === 'hat' ? 0.12 : 0.32;
+  const high = kind === 'hat' || kind === 'crash';
+  src.buffer = MUSIC.noise; src.playbackRate.value = high ? 1 : 0.6;
+  f.type = high ? 'highpass' : 'bandpass'; f.frequency.value = high ? 7000 : 1800;
+  const len = kind === 'hat' ? 0.035 : kind === 'fill' ? 0.08 : kind === 'crash' ? 1.6 : 0.14;
+  const vol = (kind === 'hat' ? 0.12 : kind === 'crash' ? 0.16 : 0.32) * (vmul || 1);
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + len);
   src.connect(f).connect(g).connect(MUSIC.gain); src.start(t, Math.random() * 0.5); src.stop(t + len + 0.01);
 }
-function musicStep(step, t) {                              // one 16th note; 16 bars of 16 steps
-  const e8 = 60 / THEME.bpm / 2, s16 = e8 / 2;
-  const bar = Math.floor(step / 16), k16 = step % 16, eighth = step / 2;
-  const [root, tones] = THEME.chordNotes[THEME.chords[bar]];
-  if (step % 2 === 0) {
-    const k8 = k16 / 2;
-    THEME.lead.forEach(([st, du, m]) => { if (st === eighth) mNote('p25', m, t, du * e8 * 0.92, 0.16, du >= 3); });
-    mNote('tri', root + (k8 % 2 ? 12 : 0), t, e8 * 0.85, 0.32);
-    const intro = MUSIC.firstPass && bar < 2, fill = bar === 11 || bar === 15;
-    if (k8 === 0 || k8 === 4) mDrum('kick', t);
-    if ((k8 === 2 || k8 === 6) && !intro) mDrum('snare', t);
-    if (!intro || k8 % 2 === 0) mDrum('hat', t);
-    if (fill && k8 >= 6) { mDrum('fill', t); mDrum('fill', t + s16); }
+function musicStep(step, t) {                              // one 16th note
+  const e8 = 60 / THEME.bpm / 2, s16 = e8 / 2, e = step >> 1, k8 = e % 8;
+  const [root, tones] = THEME.voicings[atOrBefore(THEME.chords, e)];
+  const sec = atOrBefore(THEME.sections, e), soft = sec === 'intro' || sec === 'verse1';
+  mNote('p12', tones[step % 4] + 12, t, s16 * 0.7, soft ? 0.035 : 0.05);
+  if (step % 2) { if (sec === 'bridge') mDrum('hat', t, 0.6); return; }
+  THEME.lead.forEach(([st, du, m]) => { if (st === e) mNote('p25', m, t, du * e8 * 0.92, 0.16, du >= 3); });
+  mNote('tri', root + (e % 2 ? 12 : 0), t, e8 * 0.85, 0.32);
+  if (sec === 'intro') { if (k8 === 0) mDrum('kick', t, 0.7); if (k8 % 2 === 0) mDrum('hat', t, 0.7); }
+  else if (sec === 'verse1') { if (k8 === 0 || k8 === 4) mDrum('kick', t); if (k8 === 6) mDrum('snare', t, 0.7); mDrum('hat', t, 0.8); }
+  else {
+    if (k8 === 0 || k8 === 4 || (sec === 'bridge' && k8 === 5)) mDrum('kick', t);
+    if (k8 === 2 || k8 === 6) mDrum('snare', t);
+    mDrum('hat', t);
   }
-  mNote('p12', tones[k16 % 4] + 12, t, s16 * 0.7, 0.05);
+  if ([78, 79, 110, 111, 142, 143].includes(e)) { mDrum('fill', t); mDrum('fill', t + s16); }   // fills into each section
+  if (e === 16 || e === 80 || e === 156 || (e === 0 && !MUSIC.firstPass)) mDrum('crash', t);
 }
 setInterval(() => {
   if (!musicWanted()) {
@@ -1048,7 +1057,7 @@ setInterval(() => {
   if (!MUSIC.gain) musicSetup();
   if (!MUSIC.on) {                                          // start, or fade back in, from the top of a bar
     MUSIC.on = true; MUSIC.t = AC.currentTime + 0.12;
-    if (MUSIC.step % 16) MUSIC.step = (Math.floor(MUSIC.step / 16) + 1) * 16 % 256;
+    if (MUSIC.step % 16) MUSIC.step = (Math.floor(MUSIC.step / 16) + 1) * 16 % (THEME.eighths * 2);
     if (MUSIC.firstPass === undefined) MUSIC.firstPass = true;
     MUSIC.gain.gain.cancelScheduledValues(AC.currentTime);
     MUSIC.gain.gain.setTargetAtTime(0.5, AC.currentTime, 0.2);
@@ -1056,7 +1065,7 @@ setInterval(() => {
   const s16 = 60 / THEME.bpm / 4;
   while (MUSIC.t < AC.currentTime + 0.25) {
     musicStep(MUSIC.step, MUSIC.t);
-    MUSIC.t += s16; MUSIC.step = (MUSIC.step + 1) % 256;
+    MUSIC.t += s16; MUSIC.step = (MUSIC.step + 1) % (THEME.eighths * 2);
     if (MUSIC.step === 0) MUSIC.firstPass = false;
   }
 }, 60);
