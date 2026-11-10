@@ -3,7 +3,9 @@
 These rules keep every piece of art in Grass Court Rally consistent. Follow them when you add or change sprites, tiles or UI.
 
 - **Base resolution:** the game draws into a low-res buffer about 175–200 px wide, then scales it up by a whole number (at least 2×) with nearest-neighbour sampling. Never let it smooth.
-- **Sprite sizes:** players are 14×24 inside a 16×32 cell, the ball is 5×5, racket heads are 11×11 (one per 30° step), and spectators are 3×5.
+- **Sprite sizes:** players are 14×24 inside a 16×32 cell, the ball is 5×5, racket heads are 11×11 (one per 30° step), and spectators are 3×5. Ball kids are 7×8 (crouched) or 7×11 (running). The umpire and Coach Bea are about 9×14 on court.
+- **Portraits:** 24×24 busts built from a character grid (skin, hair style, shirt, trim), outlined in the darkest colour, and shown at whole-number scales (2× in lists, 3× in dialogue, 4× on the VS card).
+- **Line review:** drawn to scale at 200 px per metre: a 5 cm line and a 3.3 cm ball radius, so the picture always agrees with the call.
 - **Palette:** Sweetie-16, locked. No colours outside it, no alpha blending in the art.
   `#1a1c2c #5d275d #b13e53 #ef7d57 #ffcd75 #a7f070 #38b764 #257179 #29366f #3b5dc9 #41a6f6 #73eff7 #f4f4f4 #94b0c2 #566c86 #333c57`
 - **Outline:** a hard 1px outline in the palette's darkest colour (`#1a1c2c`), never pure black.
