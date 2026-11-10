@@ -159,6 +159,21 @@ body {
 .fp.on { background: var(--ball); border-color: var(--ball); }
 #focus.full .fp { background: #ef7d57; border-color: #ffcd75; }
 #focus.full .flab { color: #ffcd75; }
+#oppSp {
+  position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 68px);
+  display: flex; align-items: center; gap: 3px; pointer-events: none;
+  background: var(--panel); border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); padding: 4px 6px;
+}
+#oppSp[hidden] { display: none; }
+#oppSp .fp { width: 8px; height: 8px; }
+#oppSp .fp.on { background: #b13e53; border-color: #ef7d57; }
+#oppSp.full { animation: spPulse .35s steps(2) infinite; }
+#oppSp.full .flab { color: #ffcd75; }
+@keyframes spPulse { 50% { border-color: #ef7d57; } }
+.trophy.got.on { outline: 3px solid #ffcd75; outline-offset: -3px; }
+.sphead { display: flex; align-items: center; gap: 8px; }
+.spicon { width: 32px; height: 16px; image-rendering: pixelated; flex: none; }
+.trophy .btn { margin-top: 6px; align-self: flex-start; }
 #tag.good { color: var(--ball); }
 #hint {
   align-self: center; text-align: center;
@@ -404,6 +419,7 @@ body {
 <div id="review" hidden><div class="rcard"><div class="eyebrow">Line review</div><canvas id="reviewCv" width="96" height="64"></canvas><div id="reviewVerdict">IN</div><div id="reviewSub"></div></div></div>
 <div id="bubble" aria-hidden="true"></div>
 <div id="toast" hidden role="status"><div class="tstar">★</div><div><div class="tlab">Trophy unlocked</div><div class="tname" id="toastName"></div><div class="tdesc" id="toastDesc"></div></div></div>
+<div id="oppSp" hidden aria-label="Opponent special meter"><span class="flab"></span></div>
 <div id="focus" hidden aria-label="Focus meter"><span class="flab">Focus</span><span class="fp"></span><span class="fp"></span><span class="fp"></span></div>
 <div id="call" aria-live="assertive"><div id="callBig"></div><div id="callSmall"></div></div>
 
@@ -672,6 +688,7 @@ function setOpponent(o) {
   OPP = { ...AI_DEFAULTS, ...o };
   OPP_LOOK = { ...DEFAULT_LOOK, ...(o.look || {}) };
   SPR.front = oppSprite(OPP_LOOK);
+  S.cpuSp = null;
 }
 
 // Racket heads: one pixel sprite per 30-degree step, built from a rotated ellipse.
@@ -974,6 +991,18 @@ const sfx = {
   sadtune() { [392, 330, 294, 262].forEach((f, i) => tone(f, i === 3 ? 0.5 : 0.18, 0.06, 'triangle', i * 0.2)); },
   win() { tone(660, 0.1, 0.08); tone(880, 0.1, 0.08, 'square', 0.1); tone(1320, 0.18, 0.08, 'square', 0.2); },
   lose() { tone(392, 0.12, 0.08); tone(262, 0.24, 0.08, 'square', 0.12); },
+  special(k) {
+    if (k === 'fire') { click(1); tone(180, 0.35, 0.09, 'sawtooth'); tone(360, 0.3, 0.06, 'sawtooth', 0.04); }
+    else if (k === 'frost') { tone(1760, 0.15, 0.05, 'triangle'); tone(2349, 0.2, 0.04, 'triangle', 0.06); tone(2637, 0.3, 0.03, 'triangle', 0.12); }
+    else if (k === 'meteor') { tone(880, 0.6, 0.06); tone(440, 0.7, 0.05, 'triangle', 0.1); }
+    else if (k === 'lightning') { tone(1200, 0.08, 0.05); tone(1500, 0.08, 0.04, 'square', 0.06); }
+    else if (k === 'hurricane') [300, 400, 500, 600, 700].forEach((f, i) => tone(f, 0.14, 0.045, 'triangle', i * 0.05));
+    else if (k === 'phantom') { tone(660, 0.45, 0.05, 'sine'); tone(622, 0.45, 0.05, 'sine', 0.03); }
+    else if (k === 'mirage') [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.1, 0.05, 'square', i * 0.04));
+    else { tone(220, 0.15, 0.08, 'sawtooth'); tone(440, 0.12, 0.06, 'square', 0.03); }
+  },
+  zap() { click(1.2); tone(110, 0.3, 0.1, 'sawtooth'); tone(1760, 0.1, 0.06); },
+  boom() { tone(70, 0.35, 0.14, 'triangle'); click(1); },
 };
 // ---------- Theme song ----------
 // The Grass Court Rally theme, arranged in 8-bit from the creator's guitar recording: 92 BPM; an intro on E
@@ -1157,7 +1186,7 @@ function shoot(px, py, pz, tx, ty, speed, clear) {
 function predictLand() {
   const a = 0.5 * G, b = ball.vz, c = ball.z;
   const t = (b + Math.sqrt(b * b + 4 * a * c)) / (2 * a);
-  return { x: ball.x + ball.vx * t + (ball.isServe ? 0 : 0.5 * (S.mod.wind || 0) * t * t), y: ball.y + ball.vy * t };   // wind drifts it sideways
+  return { x: ball.x + ball.vx * t + 0.5 * ((ball.isServe ? 0 : S.mod.wind || 0) + (ball.fx && ball.fx.ax || 0)) * t * t, y: ball.y + ball.vy * t };   // wind drifts it sideways
 }
 function isIn(x, y, side) {
   if (Math.abs(x) > HW + 0.05) return false;
@@ -1166,7 +1195,7 @@ function isIn(x, y, side) {
 function launch(who, tx, ty, pace, clear) {
   const v = shoot(ball.x, ball.y, ball.z, tx, ty, pace * (S.mod.fast || 1), clear);
   ball.vx = v.vx; ball.vy = v.vy; ball.vz = v.vz;
-  ball.lastHitter = who; ball.bounces = 0; ball.rolling = false; ball.mark = null; ball.reach = null; ball.frozen = 0; ball.froze = false; ball.power = false;
+  ball.lastHitter = who; ball.bounces = 0; ball.rolling = false; ball.mark = null; ball.reach = null; ball.frozen = 0; ball.froze = false; ball.power = false; ball.fx = null;
   ball.land = predictLand();
   ball.landOut = !isIn(ball.land.x, ball.land.y, who === 'p' ? 'c' : 'p');
   if (who === 'p') { cpu.plan = null; cpu.react = D().react; }
@@ -1181,15 +1210,165 @@ function planIntercept() {
   const b = { x: ball.x, y: ball.y, z: ball.z, vx: ball.vx, vy: ball.vy, vz: ball.vz, n: ball.bounces };
   const home = cpu.home || L + 0.8, dt = 1 / 120, volley = home < NET_Y + 5;
   let best = null;
+  const fx = ball.fx; let jinked = !!(fx && fx.jinked), bounced = !!(fx && fx.bounced);
+  const zMin = fx && fx.bz && fx.bz < 0.6 ? 0.1 : 0.25;
   for (let i = 0; i < 720; i++) {
-    b.vz -= G * dt; if (S.mod.wind && b.z > 0.05 && !ball.isServe) b.vx += S.mod.wind * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
-    if (b.z <= 0 && b.vz < 0) { b.z = 0; b.vz = -b.vz * SURF.bounce; b.vx *= SURF.fric; b.vy *= SURF.fric; b.n++; if (b.n >= 2) break; }
+    b.vz -= G * dt; if (S.mod.wind && b.z > 0.05 && !ball.isServe) b.vx += S.mod.wind * dt;
+    if (fx && fx.ax && b.n === 0 && b.z > 0.05) b.vx += fx.ax * dt;
+    const py = b.y;
+    b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+    if (fx && fx.real && !jinked && (py - NET_Y) * (b.y - NET_Y) <= 0) { jinked = true; jink(b, fx); }
+    if (b.z <= 0 && b.vz < 0) {
+      b.z = 0; b.vz = -b.vz * SURF.bounce; b.vx *= SURF.fric; b.vy *= SURF.fric;
+      if (fx && !bounced) { bounced = true; b.vz *= fx.bz || 1; b.vx *= (fx.bf || 1) * (fx.bx || 1); b.vy *= fx.bf || 1; }
+      b.n++; if (b.n >= 2) break;
+    }
     if (volley && b.y >= home - 0.3 && b.z > 0.2 && b.z < 2.5) { best = { x: b.x, y: b.y }; break; }   // volley it
-    if (b.n === 1 && b.z > 0.25 && b.z < 2.4) { best = { x: b.x, y: b.y }; if (b.y >= home) break; }
+    if (b.n === 1 && b.z > zMin && b.z < 2.4) { best = { x: b.x, y: b.y }; if (b.y >= home) break; }
   }
   if (!best) return { letGo: true };
   const m = D().miss * (ball.power ? 2.6 : 1);
   return { x: best.x + rand(-m, m), y: clamp(best.y + 0.3, NET_Y + 1.2, L + 3) };
+}
+
+// ---------- Special shots ----------
+// Every story boss has a signature shot. Beat them to learn it and pick one in Upgrades: a full Focus meter
+// fires it. Opponents charge their own meter as they hit, glow when it's full and shout the name as they fire.
+const SPECIALS = {
+  power:     { name: 'Power shot', owner: null,     col: ['s', 'o'],      desc: 'A flat, heavy drive. Everyone starts with it.' },
+  meteor:    { name: 'Meteor',     owner: 'marla',  col: ['v', 'o', 's'], desc: 'A sky-high lob that crashes down and kicks up over their head.',
+               counter: 'When it goes up, run back. Way back.' },
+  frost:     { name: 'Frostbite',  owner: 'rex1',   col: ['c', 'w'],      desc: 'Skids off the court, low and fast, after it bounces.',
+               counter: 'It stays low and speeds up after the bounce. Swing a touch early.' },
+  fire:      { name: 'Fireball',   owner: 'theo',   col: ['r', 'o', 'y'], desc: 'The fastest shot in the game, trailing flames.',
+               counter: "It's just fast. Very, very fast. Be in place before it's hit." },
+  lightning: { name: 'Lightning',  owner: 'rex2',   col: ['y', 'w'],      desc: 'Zaps across to the other corner as it crosses the net.',
+               counter: 'It switches sides at the net. Wait for the zap, then move.' },
+  mirage:    { name: 'Mirage',     owner: 'victor', col: ['w', 'c'],      desc: 'Splits into three balls. Only one is real.',
+               counter: 'Three balls, one shadow. Follow the shadow.' },
+  hurricane: { name: 'Hurricane',  owner: 'mara',   col: ['c', 't', 'w'], desc: 'Curves hard through the air into a corner.',
+               counter: "It starts wide and bends back in. Run to where it's bending, not where it's going." },
+  phantom:   { name: 'Phantom',    owner: 'silas1', col: ['v', 'n'],      desc: 'Vanishes in flight and reappears just before it lands.',
+               counter: "It disappears, but its shadow doesn't. Follow the shadow." },
+};
+const SP_ORDER = Object.keys(SPECIALS);
+const spUnlocked = k => k === 'power' || !!(CAREER && SPECIALS[k] && CAREER.best[SPECIALS[k].owner]);
+function playerSpecial() {
+  if (S.online || !CAREER) return 'power';
+  return SPECIALS[CAREER.sp] && spUnlocked(CAREER.sp) ? CAREER.sp : 'power';
+}
+// re-aim a Lightning ball as it crosses the net so it lands on the real target
+function jink(b, fx) {
+  const t = (fx.real.y - b.y) / b.vy;
+  if (t > 0.05) b.vx = (fx.real.x - b.x - 0.5 * (S.mod.wind || 0) * t * t) / t;
+}
+function fireSpecial(who, kind, tx, ty, pace, clear) {
+  const fx = { k: kind };
+  const toC = who === 'p';
+  const deepY = m => toC ? L - m : m;                    // m metres inside the far baseline
+  const boost = toC && S.career && hasPerk('theo') ? 1.08 : 1;
+  const side = x => Math.abs(x) > 0.6 ? Math.sign(x) : (Math.random() < 0.5 ? -1 : 1);
+  let react = 0.15;
+  tx = clamp(tx, -(HW - 0.4), HW - 0.4);
+  if (kind === 'meteor') { ty = deepY(rand(0.9, 1.9)); pace = 8; clear = 9; tx *= 0.8; fx.bz = 1.05; fx.bf = 1.35; react = 0.05; }
+  else {
+    ty = toC ? clamp(ty, NET_Y + 5, L - 0.4) : clamp(ty, 0.4, NET_Y - 5);
+    pace = Math.max(pace, 16);
+    if (kind === 'fire') { pace = Math.min(34, pace * 1.45 + 2) * boost; clear = 0.12; react = 0.25; }
+    else if (kind === 'frost') { pace = Math.min(28, pace * 1.15 + 1) * boost; clear = 0.12; fx.bz = 0.42; fx.bf = 1.15; }
+    else if (kind === 'lightning') { pace = Math.min(28, pace * 1.1 + 1) * boost; clear = 0.2; const sd = side(tx); fx.real = { x: sd * (HW - 0.8), y: ty }; tx = -sd * 1.2; fx.bx = 0.3; react = 0.1; }
+    else if (kind === 'hurricane') { pace = Math.min(25, pace) * boost; clear = 0.4; const sd = side(tx); tx = sd * (HW - 0.8); fx.ax = -sd * 11; react = 0.1; }
+    else if (kind === 'phantom') { pace = Math.min(28, pace * 1.1 + 1) * boost; clear = 0.2; fx.hide = true; react = 0.35; }
+    else if (kind === 'mirage') { pace = Math.min(28, pace * 1.1 + 1) * boost; clear = 0.2; fx.decoys = true; react = 0.3; }
+    else { pace = Math.min(33, pace * (boost > 1 ? 1.45 : 1.35) + 3); clear = Math.min(clear, 0.15); }
+  }
+  let aimX = tx;
+  if (fx.ax) for (let i = 0; i < 3; i++) {                // aim wide so the curve bends it back onto the target
+    const v = shoot(ball.x, ball.y, ball.z, aimX, ty, pace * (S.mod.fast || 1), clear), t = (ty - ball.y) / v.vy;
+    aimX = tx - 0.5 * fx.ax * t * t;
+  }
+  launch(who, aimX, ty, pace, clear);
+  ball.power = true; ball.fx = fx; fx.y0 = ball.y;
+  ball.land = fx.real ? { x: fx.real.x, y: fx.real.y } : predictLand();
+  ball.landOut = !isIn(ball.land.x, ball.land.y, toC ? 'c' : 'p');
+  if (fx.decoys) fx.dec = [-1, 1].map(s => ({ x: ball.x, y: ball.y, z: ball.z, vx: ball.vx + s * rand(2.6, 4), vy: ball.vy * rand(0.92, 1.05), vz: ball.vz * rand(0.9, 1.1), trail: [], on: true }));
+  if (toC) cpu.react += react;
+  sfx.special(kind);
+  burst(ball.x, ball.y, ball.z, 14, SPECIALS[kind].col, 1.6);
+  S.hitstop = 0.12; S.shake = kind === 'fire' || kind === 'meteor' ? 1.8 : 1.2;
+}
+function cpuShout(kind) {
+  const elb = $('bubble');
+  elb.textContent = SPECIALS[kind].name.toUpperCase() + '!';
+  const [fx, fy] = pp(cpu.x, cpu.y, 0);
+  elb.style.left = (OFFX + fx * SCALE) + 'px'; elb.style.top = (OFFY + (fy - 30) * SCALE) + 'px';
+  elb.classList.add('show'); clearTimeout(bubbleT);
+  bubbleT = setTimeout(() => elb.classList.remove('show'), 1100);
+}
+function renderOppSp() {
+  const el2 = $('oppSp'), sp = S.cpuSp;
+  el2.hidden = !(S.mode === 'play' && sp);
+  if (el2.hidden) return;
+  const lab = el2.querySelector('.flab');
+  if (lab.textContent !== SPECIALS[sp.kind].name) {
+    lab.textContent = SPECIALS[sp.kind].name;
+    el2.querySelectorAll('.fp').forEach(x => x.remove());
+    for (let i = 0; i < sp.need; i++) el2.append(el('span', 'fp'));
+  }
+  el2.classList.toggle('full', sp.n >= sp.need);
+  el2.querySelectorAll('.fp').forEach((x, i) => x.classList.toggle('on', i < sp.n));
+}
+// special effects that run every frame while a special ball is in the air
+function stepSpecial(dt) {
+  const fx = ball.fx;
+  if (S.flash > 0) S.flash -= dt;
+  if (fx && fx.bolt > 0) fx.bolt -= dt;
+  if (fx && !ball.dead && ball.bounces === 0) {
+    const cols = SPECIALS[fx.k].col;
+    if (fx.k === 'fire') burst(ball.x, ball.y, ball.z, 4, cols, 0.45);
+    else if (fx.k !== 'phantom' && fx.k !== 'mirage' && Math.random() < 0.5) burst(ball.x, ball.y, ball.z, 1, cols, 0.25);
+    if (fx.hide) {
+      const span = (ball.land ? ball.land.y : fx.y0) - fx.y0, f = span ? (ball.y - fx.y0) / span : 1;
+      fx.hidden = f > 0.15 && f < 0.82;
+    }
+  } else if (fx) fx.hidden = false;
+  if (fx && fx.dec) for (const d of fx.dec) {
+    if (!d.on) continue;
+    d.vz -= G * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.z += d.vz * dt;
+    d.trail.push(pp(d.x, d.y, d.z)); if (d.trail.length > 9) d.trail.shift();
+    if (d.z <= 0 || ball.bounces > 0) { d.on = false; burst(d.x, d.y, Math.max(0, d.z), 6, ['w', 'm'], 0.6); }
+  }
+  // a glow around anyone whose special is ready
+  const aura = (p, k) => { if (Math.random() < 0.6) { const [ax, ay] = pp(p.x, p.y, 0); parts.push({ x: ax + rand(-8, 8), y: ay - rand(2, 26), vx: 0, vy: -18, life: 0.45, conf: true, c: PAL[pick(SPECIALS[k].col, Math.random)] }); } };
+  if (player.focus >= 3) aura(player, playerSpecial());
+  if (S.cpuSp && S.cpuSp.n >= S.cpuSp.need) aura(cpu, S.cpuSp.kind);
+}
+function onSpecialBounce() {
+  const fx = ball.fx;
+  if (!fx || fx.bounced) return;
+  fx.bounced = true;
+  ball.vz *= fx.bz || 1; ball.vx *= (fx.bf || 1) * (fx.bx || 1); ball.vy *= fx.bf || 1;   // Lightning grips the court after its zag
+  fx.hidden = false;
+  const cols = SPECIALS[fx.k].col;
+  if (fx.k === 'meteor') { S.shake = 2; sfx.boom(); burst(ball.x, ball.y, 0, 18, cols, 1.4); }
+  else if (fx.k === 'fire' || fx.k === 'frost') burst(ball.x, ball.y, 0, 12, cols, 1);
+}
+function drawSpecialBall(bx, by, k, trail) {
+  const cols = SPECIALS[k].col, fl = Math.floor(S.clock * 20);
+  for (let i = 0; i < trail.length - 1; i++) {                 // a tapering trail in the shot's colours
+    const [tx, ty] = trail[i], sz = 1 + Math.round(3 * i / trail.length);
+    rect(tx - (sz >> 1), ty - (sz >> 1), sz, sz, PAL[cols[(i + fl) % cols.length]]);
+  }
+  if (k !== 'power') {                                           // a flickering halo
+    const c = PAL[cols[fl % cols.length]], r = 4 + (fl & 1);
+    for (let j = -r; j <= r; j++) { const w = Math.round(Math.sqrt(r * r - j * j)); rect(bx - w, by + j, w * 2 + 1, 1, j === -r || j === r ? PAL.k : c); }
+  }
+  ctx.drawImage(SPR.ball, bx - 2, by - 2);
+  if (k === 'hurricane') {
+    const a = S.clock * 24;
+    rect(bx + Math.round(Math.cos(a) * 6), by + Math.round(Math.sin(a) * 3), 1, 1, PAL.w);
+    rect(bx - Math.round(Math.cos(a) * 6), by - Math.round(Math.sin(a) * 3), 1, 1, PAL.c);
+  }
 }
 
 // ---------- Input ----------
@@ -1442,11 +1621,10 @@ function playerHit(dx, e) {
   }
   ball.isServe = false;
   if (MS) { if (q > 0.6 && tag !== 'Mishit') MS.perfects++; MS.lastKind = drop ? 'drop' : 'drive'; }
-  // Focus: chain Perfects to charge a Power shot
-  let pshot = false;
+  // Focus: chain Perfects to charge your special shot
+  let pshot = false, spk = null;
   if (tag !== 'Mishit' && player.focus >= 3 && !drop) {
-    pshot = true; pace = Math.min(33, pace * (S.career && hasPerk('theo') ? 1.45 : 1.35) + 3); clear = Math.min(clear, 0.15); tag = 'Power shot';
-    ty = clamp(ty, NET_Y + 5, L - 0.4);
+    pshot = true; spk = playerSpecial(); tag = SPECIALS[spk].name + '!';
     player.focus = 0;
     if (MS) MS.powers = (MS.powers || 0) + 1;
   } else if (tag === 'Mishit') player.focus = 0;
@@ -1454,11 +1632,10 @@ function playerHit(dx, e) {
   else player.focus = Math.max(0, player.focus - 1);
   renderFocus();
   if (S.practice) { practiceEvent('returns'); if (q > 0.6 && tag !== 'Mishit') practiceEvent('perfects'); if (drop && tag !== 'Mishit') practiceEvent('drops'); if (pshot) practiceEvent('powers'); }
-  launch('p', clamp(tx, -(HW + 2.5), HW + 2.5), ty, pace, clear);
-  ball.power = pshot;
-  if (pshot) { cpu.react += 0.15; S.hitstop = 0.12; S.shake = 1.4; burst(ball.x, ball.y, ball.z, 12, ['s', 'o', 'y'], 1.6); roar(0.9); }
-  else if (q > 0.6) { S.hitstop = 0.05; burst(ball.x, ball.y, ball.z, 4, ['y', 'w'], 0.8); }
-  showTag(tag, tag === 'Perfect' || tag === 'Strong' || tag === 'Smash' || tag === 'Drop shot' || tag === 'Power shot' || tag === 'Lob');
+  if (pshot) { fireSpecial('p', spk, tx, ty, pace, clear); roar(0.9); }
+  else launch('p', clamp(tx, -(HW + 2.5), HW + 2.5), ty, pace, clear);
+  if (!pshot && q > 0.6) { S.hitstop = 0.05; burst(ball.x, ball.y, ball.z, 4, ['y', 'w'], 0.8); }
+  showTag(tag, tag === 'Perfect' || tag === 'Strong' || tag === 'Smash' || tag === 'Drop shot' || pshot || tag === 'Lob');
   S.tips++;
 }
 function cpuHit(dx) {
@@ -1486,6 +1663,16 @@ function cpuHit(dx) {
   const atNet = player.y > NET_Y - 5;
   if ((atNet && Math.random() < d.lob) || (!atNet && Math.random() < d.lobBase)) { ty = rand(0.6, 2.6); pace = 8.5; clear = 2.5; kind = 'lob'; }
   else if (!atNet && player.y < 1.5 && Math.random() < d.drop) { ty = NET_Y - rand(1.4, 2.8); pace = 9; clear = 0.15; tx *= 0.6; kind = 'drop'; }
+  const sp = S.cpuSp;
+  if (sp && !weak) {
+    if (sp.n >= sp.need && (kind === 'drive' || sp.kind === 'meteor')) {     // the meter's full: here it comes
+      sp.n = 0; renderOppSp();
+      fireSpecial('c', sp.kind, tx, ty, pace, clear); cpuShout(sp.kind);
+      cpu.home = L + 0.8;
+      return;
+    }
+    sp.n = Math.min(sp.need, sp.n + 1); renderOppSp();
+  }
   launch('c', tx, ty, pace, clear);
   // net rushers follow a drive in; everyone else recovers to the baseline
   cpu.home = kind === 'drive' && Math.random() < d.net ? NET_Y + rand(2.4, 3.4) : L + 0.8;
@@ -1574,11 +1761,16 @@ function physics(dt) {
   }
   ball.vz -= G * dt;
   if (S.mod.wind && ball.z > 0.05 && !ball.isServe) ball.vx += S.mod.wind * dt;   // wind spares the serve
+  if (ball.fx && ball.fx.ax && ball.bounces === 0 && ball.z > 0.05) ball.vx += ball.fx.ax * dt;   // Hurricane bends
   ball.x += ball.vx * dt; ball.y += ball.vy * dt; ball.z += ball.vz * dt;
   if ((prevY - NET_Y) * (ball.y - NET_Y) < 0 && Math.abs(ball.x) < POST_X && ball.z < netHeight(ball.x)) {
     ball.y = prevY; ball.vy *= -0.12; ball.vx *= 0.3; ball.vz = Math.min(ball.vz, 0);
     sfx.net();
     if (!ball.dead && !(S.online && ball.lastHitter === 'p')) { if (ball.isServe) fault(); else endPoint(ball.lastHitter === 'p' ? 'c' : 'p', 'Net'); }
+  }
+  const fx = ball.fx;
+  if (fx && fx.real && !fx.jinked && (prevY - NET_Y) * (ball.y - NET_Y) <= 0 && prevY !== ball.y) {   // Lightning zaps across
+    fx.jinked = true; jink(ball, fx); fx.bolt = 0.25; S.flash = 0.07; sfx.zap(); burst(ball.x, ball.y, ball.z, 10, ['y', 'w'], 1.2);
   }
   if (ball.z <= 0 && ball.vz < 0) {
     ball.z = 0;
@@ -1586,6 +1778,7 @@ function physics(dt) {
     if (Math.abs(ball.vz) < 1.0) { ball.vz = 0; ball.rolling = true; }
     else { ball.vz = -ball.vz * SURF.bounce; sfx.bounce(near); burst(ball.x, ball.y, 0, ball.power ? 8 : 4, DUST[VEN.court] || DUST.grass, 0.6); }
     ball.vx *= SURF.fric; ball.vy *= SURF.fric;
+    onSpecialBounce();
     if (!ball.dead) onBounce();
   }
   if (!ball.dead) { tryHit('p', prevY); if (!S.online) tryHit('c', prevY); }
@@ -1664,11 +1857,12 @@ function update(dt) {
   if (S.cheer > 0) S.cheer -= dt;
   if (player.cheer > 0) player.cheer -= dt;
   if (player.aimFlash && player.aimFlash.t > 0) player.aimFlash.t -= dt;
+  stepSpecial(dt);
   stepChallenge();
   if (cpu.cheer > 0) cpu.cheer -= dt;
   if (S.state !== 'serve') {
     ball.trail.push(pp(ball.x, ball.y, ball.z));
-    if (ball.trail.length > (ball.power ? 9 : 4)) ball.trail.shift();
+    if (ball.trail.length > (ball.power ? 10 : 4)) ball.trail.shift();
   } else ball.trail.length = 0;
 }
 
@@ -1800,6 +1994,8 @@ function renderFocus() {
   el.hidden = S.mode !== 'play';
   el.classList.toggle('full', player.focus >= 3);
   el.querySelectorAll('.fp').forEach((p, i) => p.classList.toggle('on', i < player.focus));
+  el.querySelector('.flab').textContent = player.focus >= 3 ? SPECIALS[playerSpecial()].name : 'Focus';
+  renderOppSp();
 }
 let rallyPop = 0;
 function renderRally() {
@@ -1964,6 +2160,15 @@ function drawPlayer(p, isPlayer) {
 }
 function drawBall() {
   const [bx, by] = pp(ball.x, ball.y, ball.z);
+  const fx = ball.fx;
+  if (fx && fx.dec) for (const d of fx.dec) if (d.on) { const [dx, dy] = pp(d.x, d.y, d.z); drawSpecialBall(dx, dy, fx.k, d.trail); }
+  if (fx && fx.bolt > 0) {                                  // Lightning: a bolt from the sky
+    let x0 = bx, y0 = 0;
+    const n = 6;
+    for (let i = 1; i <= n; i++) { const x1 = i === n ? bx : bx + Math.round(rand(-6, 6)), y1 = Math.round(by * i / n); pLine(x0, y0, x1, y1, PAL.y, 2); pLine(x0, y0, x1, y1, PAL.w, 1); x0 = x1; y0 = y1; }
+  }
+  if (fx && fx.hidden) { if (Math.floor(S.clock * 30) % 7 === 0) rect(bx, by, 1, 1, PAL.v); return; }   // Phantom: gone
+  if (fx) { drawSpecialBall(bx, by, fx.k, ball.trail); return; }
   for (let i = 0; i < ball.trail.length - 1; i++) {
     const [tx, ty] = ball.trail[i];
     rect(tx - 1, ty - 1, 2, 2, ball.power ? (i % 2 ? PAL.s : PAL.o) : i < ball.trail.length - 2 ? PAL.g : PAL.l);
@@ -1989,7 +2194,7 @@ function drawMarkers() {
       pRing(fx, fy, 8, 2.5, tc <= 0.17 ? PAL.l : PAL.w, tc > 0.17);
     }
   }
-  if (D().marker && S.state === 'rally' && !ball.dead && ball.lastHitter === 'c' && ball.bounces === 0 && ball.land && !ball.landOut) {
+  if (D().marker && S.state === 'rally' && !ball.dead && ball.lastHitter === 'c' && ball.bounces === 0 && ball.land && !ball.landOut && !(ball.fx && (ball.fx.hide || ball.fx.dec || (ball.fx.real && !ball.fx.jinked)))) {
     const [mx, my] = pp(ball.land.x, ball.land.y, 0);
     pRing(mx, my, 4, 2, PAL.y, true);
   }
@@ -2012,6 +2217,7 @@ function render() {
   ];
   items.sort((a, b) => b.y - a.y).forEach(it => it.f());
   for (const q of parts) rect(Math.round(q.x), Math.round(q.y), 1, 1, q.c);
+  if (S.flash > 0) { ctx.globalAlpha = 0.55; ctx.fillStyle = PAL.w; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height); ctx.globalAlpha = 1; }
 }
 
 // ---------- Screens ----------
@@ -2099,7 +2305,8 @@ const OPPS = {
     pre: "I'm the fastest guy in this park. Ask anyone. Ask the pigeons.",
     tip: "Toby gets to everything, then sprays it. Keep the ball in play and let him miss.",
     win: "Okay, okay. Fast feet aren't everything. Apparently." },
-  marla: { name: 'Marla Stone', tag: 'Queen of the park', boss: true, ai: { speed: 4.5, react: 0.26, miss: 0.4, err: 0.12, pace: 14, serve: 15, aim: 0.4, lob: 0.8, lobBase: 0.18 }, pts: 60,
+  marla: { name: 'Marla Stone', tag: 'Queen of the park', boss: true, ai: { speed: 4.5, react: 0.26, miss: 0.4, err: 0.12, pace: 14, serve: 15, aim: 0.4, lob: 0.8, lobBase: 0.18 }, sp: 'meteor', spPre: 'Watch the sky, kid. My Meteor comes down like a sack of bricks.', spGive: 'And take the Meteor. Throw it high and let it fall like a sack of bricks.',
+    pts: 60,
     look: { skin: ['s', 'o', 'r'], hair: ['h', 'n'], style: 'bob', shirt: ['c', 'b', 'v'], trim: 'w', racket: 'h', bg: 'n' },
     goal: { type: 'netpoint', text: 'Win a point at the net' },
     pre: "This is my court, kid. Park champion eleven years running. The trophy's a mug. I love that mug.",
@@ -2118,7 +2325,8 @@ const OPPS = {
     pre: "On clay, nobody runs past me. I'll be there. Every. Single. Ball.",
     tip: "Ines never gets tired. Mix quick taps with soft holds to drag her forward.",
     win: "Your legs held up. Most don't. Respect." },
-  rex1: { name: 'Rex Vantage', tag: 'The rival', boss: true, ai: { speed: 5.4, react: 0.21, miss: 0.32, err: 0.11, pace: 17, serve: 18.5, aim: 0.5, drop: 0.06, net: 0.15 }, pts: 100,
+  rex1: { name: 'Rex Vantage', tag: 'The rival', boss: true, ai: { speed: 5.4, react: 0.21, miss: 0.32, err: 0.11, pace: 17, serve: 18.5, aim: 0.5, drop: 0.06, net: 0.15 }, sp: 'frost', spPre: "Ever played against Frostbite? It skids so low you'll be digging it out of the clay.", spGive: "...Fine. That's Frostbite. My dad taught me. Don't tell him I let you have it.",
+    pts: 100,
     look: { skin: ['s', 'o', 'r'], hair: ['s', 'o'], style: 'swoop', shirt: ['r', 'h', 'n'], trim: 's', racket: 's', bg: 'h' },
     goal: { type: 'ace', text: 'Serve an ace' },
     pre: "Rex Vantage. You've heard of me. The ball kid from Old Meadow? Cute. Try not to cry when I win.",
@@ -2137,7 +2345,8 @@ const OPPS = {
     pre: "Power is boring. Watch the ball die just over the net. That's art.",
     tip: "Sasha loves drop shots. Stand a step inside the baseline so you can run them down.",
     win: "Hm. You understand touch. Rare." },
-  theo: { name: 'Theo Brant', tag: 'Big T', boss: true, ai: { speed: 5.0, react: 0.2, miss: 0.3, err: 0.11, pace: 22, serve: 23, aim: 0.6, edge: true }, pts: 140,
+  theo: { name: 'Theo Brant', tag: 'Big T', boss: true, ai: { speed: 5.0, react: 0.2, miss: 0.3, err: 0.11, pace: 22, serve: 23, aim: 0.6, edge: true }, sp: 'fire', spPre: "Ever seen a tennis ball ON FIRE? Big T's FIREBALL, coming right up!", spGive: 'You earned the Fireball, small fry. Hit it like you mean it!',
+    pts: 140,
     look: { skin: ['o', 'r', 'h'], hair: ['n', 'k'], style: 'buzz', shirt: ['o', 'r', 'h'], trim: 'w', racket: 'n', bg: 'r' },
     goal: { type: 'perfects', n: 8, text: 'Hit 8 Perfect shots' },
     pre: "BIG T IS HERE! Hope you brought a helmet!",
@@ -2156,7 +2365,8 @@ const OPPS = {
     pre: "Serve, volley, shake hands. I like my matches short.",
     tip: "Odette charges in behind every serve. Swipe hard to a corner to pass her, or slowly to lob her.",
     win: "That was not short. Or fun. Fine, it was a little fun." },
-  rex2: { name: 'Rex Vantage', tag: 'The rival, again', boss: true, ai: { speed: 6.2, react: 0.13, miss: 0.18, err: 0.06, pace: 20, serve: 21, aim: 0.7, drop: 0.12, net: 0.25 }, pts: 200,
+  rex2: { name: 'Rex Vantage', tag: 'The rival, again', boss: true, ai: { speed: 6.2, react: 0.13, miss: 0.18, err: 0.06, pace: 20, serve: 21, aim: 0.7, drop: 0.12, net: 0.25 }, sp: 'lightning', spPre: "New trick. Lightning. It changes its mind at the net. Like you'll change your mind about playing me.", spGive: "Here. Lightning. You'd have figured it out anyway.",
+    pts: 200,
     look: { skin: ['s', 'o', 'r'], hair: ['s', 'o'], style: 'swoop', shirt: ['w', 'm', 'M'], trim: 'r', racket: 's', bg: 'h' },
     goal: { type: 'lostmax', n: 1, text: 'Win, dropping 1 game at most' },
     pre: "Grass is MY surface. My dad won the Crown four times. On grass.",
@@ -2167,16 +2377,18 @@ const OPPS = {
     look: { skin: ['s', 'o', 'r'], hair: ['M', 'n'], style: 'short', shirt: ['w', 'm', 'M'], trim: 'M', racket: 'M', bg: 'M' },
     goal: { type: 'perfects', n: 10, text: 'Hit 10 Perfect shots' },
     pre: "...",
-    tip: "Anton hasn't missed on purpose in ten years. Chain your Perfects and unleash Power shots.",
+    tip: "Anton hasn't missed on purpose in ten years. Chain your Perfects and unleash your special shots.",
     win: "...Well played.",
     after: [['bea', "Anton Grey hasn't said two words in public in ten years. You got two. That's a compliment."]] },
-  victor: { name: 'Victor Hale', tag: 'The champion', boss: true, ai: { speed: 6.6, react: 0.11, miss: 0.14, err: 0.05, pace: 19.5, serve: 21, aim: 0.65, drop: 0.1, net: 0.2, lob: 0.5, lobBase: 0.05, edge: true }, pts: 400,
+  victor: { name: 'Victor Hale', tag: 'The champion', boss: true, ai: { speed: 6.6, react: 0.11, miss: 0.14, err: 0.05, pace: 19.5, serve: 21, aim: 0.65, drop: 0.1, net: 0.2, lob: 0.5, lobBase: 0.05, edge: true }, sp: 'mirage', spPre: 'Forty years of tricks, and the Mirage is the best of them. Three balls. Pick the right one.', spGive: 'The Mirage is yours. Bea always said I was a show-off. She was right.',
+    pts: 400,
     look: { skin: ['s', 'o', 'r'], hair: ['w', 'm'], style: 'swoop', shirt: ['w', 'm', 'M'], trim: 's', racket: 's', bg: 's' },
     goal: { type: 'love', text: 'Win a game without dropping a point' },
     pre: "So you're Bea's student. I wondered when she'd find one. I beat her here, you know. Her last final.",
     tip: "This is it. Everything you've learned. Watch the ball, not the man.",
     win: "Forty years she's waited for that. Go on. Go to her." },
-  mara: { name: 'Mara Quinn', tag: 'Slice queen', ai: { speed: 6.3, react: 0.13, miss: 0.2, err: 0.06, pace: 17, serve: 19, aim: 0.6, drop: 0.2 }, pts: 150,
+  mara: { name: 'Mara Quinn', tag: 'Slice queen', ai: { speed: 6.3, react: 0.13, miss: 0.2, err: 0.06, pace: 17, serve: 19, aim: 0.6, drop: 0.2 }, sp: 'hurricane', spPre: 'Feel that sea wind? My Hurricane rides it all the way into the corner.', spGive: 'Take the Hurricane. The wind seems to like you anyway.',
+    pts: 150,
     look: { skin: ['o', 'r', 'h'], hair: ['r', 'h'], style: 'bob', shirt: ['l', 'g', 't'], trim: 'w', racket: 'g', bg: 't' },
     goal: { type: 'winners', n: 4, text: 'Hit 4 winners' },
     pre: "They call me the slice queen. The ball stays low, and you stay frustrated.",
@@ -2188,7 +2400,8 @@ const OPPS = {
     pre: "My serve has a speed camera named after it.",
     tip: "Dax serves bombs but turns like a cargo ship. Get the return back and make him run.",
     win: "Respect. Nobody breaks me. You did." },
-  silas1: { name: 'Silas Crowe', tag: "Victor's protégé", boss: true, ai: { speed: 6.6, react: 0.1, miss: 0.14, err: 0.05, pace: 20, serve: 22, aim: 0.72, drop: 0.12, net: 0.2 }, pts: 220,
+  silas1: { name: 'Silas Crowe', tag: "Victor's protégé", boss: true, ai: { speed: 6.6, react: 0.1, miss: 0.14, err: 0.05, pace: 20, serve: 22, aim: 0.72, drop: 0.12, net: 0.2 }, sp: 'phantom', spPre: "Victor never taught you the Phantom. Now you see it... now you don't.", spGive: "Take the Phantom. Victor gave it to me. Let's see what you do with it.",
+    pts: 220,
     look: { skin: ['s', 'o', 'r'], hair: ['n', 'k'], style: 'swoop', shirt: ['n', 'v', 'k'], trim: 'r', racket: 'r', bg: 'n' },
     goal: { type: 'perfects', n: 10, text: 'Hit 10 Perfect shots' },
     pre: "Victor trained me for six years to beat you. Six years. You had one summer.",
@@ -2199,9 +2412,10 @@ const OPPS = {
     look: { skin: ['s', 'o', 'r'], hair: ['n', 'k'], style: 'bun', shirt: ['w', 'm', 'M'], trim: 'c', racket: 'c', bg: 'c' },
     goal: { type: 'rally', n: 15, text: 'Win a rally of 15+ shots' },
     pre: "I have not missed a forehand since Tuesday.",
-    tip: "Yuki never misses first. Charge your Focus and take the Power shot when it's ready.",
+    tip: "Yuki never misses first. Charge your Focus and fire your special when it's ready.",
     win: "It is Wednesday now. I missed. Well played." },
-  silas2: { name: 'Silas Crowe', tag: 'The Night Final', boss: true, ai: { speed: 6.9, react: 0.09, miss: 0.11, err: 0.045, pace: 20.5, serve: 22.5, aim: 0.72, drop: 0.12, net: 0.25, lob: 0.55, edge: true }, pts: 450,
+  silas2: { name: 'Silas Crowe', tag: 'The Night Final', boss: true, ai: { speed: 6.9, react: 0.09, miss: 0.11, err: 0.045, pace: 20.5, serve: 22.5, aim: 0.72, drop: 0.12, net: 0.25, lob: 0.55, edge: true }, sp: 'phantom', spPre: 'You know the Phantom now. So do I. Better.', spGive: '',
+    pts: 450,
     look: { skin: ['s', 'o', 'r'], hair: ['n', 'k'], style: 'swoop', shirt: ['n', 'v', 'k'], trim: 's', racket: 'r', bg: 'k' },
     goal: { type: 'love', text: 'Win a game without dropping a point' },
     pre: "Under the lights, on your lawns. I'll take your crown and your coach's grass.",
@@ -2278,7 +2492,9 @@ const ENDING = [
 const LOSS_LINES = ["Shake it off. Watch where they hit, then try again.", "Close. Next time, swing a hair earlier.",
   "Every champion lost a hundred times first. Go again.", "Coins still count. Spend them on upgrades if you're stuck."];
 const TIPS = [
-  "Three Perfect shots in a row fill your Focus meter. The next swing is a Power shot.",
+  "Three Perfect shots in a row fill your Focus meter. The next swing fires your special shot.",
+  "Beat a boss to learn their special shot: Meteor, Frostbite, Fireball and more. Pick one in Upgrades.",
+  "When an opponent glows, their special is coming. Watch the shadow, not the flames.",
   "Swipe toward the corner you want. A fast swipe hits hard. Corners make them run, and running makes them miss.",
   "Swing early to pull the ball cross-court. Swing late to send it down the line.",
   "A fast swipe hits hard and deep. A slow swipe is softer and safer.",
@@ -2607,8 +2823,32 @@ function renderRanks(body) {
   back.type = 'button'; back.addEventListener('click', () => { HUB_TAB = 'tour'; renderHub(); });
   body.append(back);
 }
+function spIcon(k) {
+  const c = document.createElement('canvas'); c.width = 32; c.height = 16; c.className = 'spicon';
+  const x = c.getContext('2d'), cols = SPECIALS[k].col.map(q => PAL[q]);
+  for (let i = 0; i < 8; i++) { x.fillStyle = cols[i % cols.length]; x.fillRect(2 + i * 2, 7 + (i % 2), 2, 2); }
+  const disc = (cx, r, col) => { x.fillStyle = col; for (let j = -r; j <= r; j++) { const w = Math.round(Math.sqrt(r * r - j * j)); x.fillRect(cx - w, 8 + j, w * 2 + 1, 1); } };
+  disc(24, 6, PAL.k); disc(24, 5, cols[0]); disc(24, 3, PAL.l); x.fillStyle = PAL.w; x.fillRect(22, 6, 2, 2);
+  return c;
+}
 function renderUpgrades(body) {
-  body.append(el('p', 'blurb', 'Spend coins on your game. Every match earns coins, even a loss.'));
+  body.append(el('h3', 'shophead', 'Special shots'),
+              el('p', 'blurb', 'Three Perfect shots in a row fill your Focus meter. Your next swing fires the special you pick here. Beat a boss to learn their shot.'));
+  const sg = el('div', 'trophies');
+  SP_ORDER.forEach(k => {
+    const sp = SPECIALS[k], got = spUnlocked(k), on = got && playerSpecial() === k;
+    const card = el('div', 'trophy' + (got ? ' got' : '') + (on ? ' on' : ''));
+    const head = el('div', 'sphead'); head.append(spIcon(k), el('div', 'oname', sp.name));
+    card.append(head, el('div', 'otag', got ? sp.desc : `Beat ${OPPS[sp.owner].name} to learn this`));
+    if (got) {
+      const b = el('button', 'btn small' + (on ? ' primary' : ''), on ? 'Equipped' : 'Equip');
+      b.type = 'button'; b.disabled = on;
+      b.addEventListener('click', () => { CAREER.sp = k; saveCareer(); sfx.special(k); renderHub(); });
+      card.append(b);
+    }
+    sg.append(card);
+  });
+  body.append(sg, el('p', 'blurb', 'Spend coins on your game. Every match earns coins, even a loss.'));
   const pk = el('div', 'trophies');
   PERKS.forEach(k => {
     const got = hasPerk(k.boss);
@@ -2642,7 +2882,7 @@ function renderUpgrades(body) {
 const PERKS = [
   { boss: 'marla', name: "Marla's mug", desc: 'Start every match with 1 Focus' },
   { boss: 'rex1', name: 'Rivalry', desc: 'First serves fault less often' },
-  { boss: 'theo', name: 'Big T power', desc: 'Power shots hit even harder' },
+  { boss: 'theo', name: 'Big T power', desc: 'Special shots hit even harder' },
   { boss: 'rex2', name: 'Calm under pressure', desc: 'A slightly wider timing window' },
   { boss: 'victor', name: 'Champion\'s legs', desc: 'Run a little faster' },
 ];
@@ -2679,12 +2919,16 @@ function startCareerMatch(id) {
   S.mod = t.venue === 'harbour' ? { wind: (Math.random() < 0.5 ? -1 : 1) * 0.6 } : {};
   stageScene(id, t.venue);
   $('nameC').textContent = o.name.split(' ')[0].slice(0, 6);
-  runCutscene([{ loc: 'locker', title: t.name, cast: ['bea', 'you'], lines: [['bea', o.tip]] },
-                { loc: 'tunnel', venue: t.venue, cast: [id, 'you'], lines: [[id, o.pre, o.boss ? '!' : null]] }], () => showVs(o, t.name, beginCareerMatch));
+  const coach = [['bea', o.tip]];
+  if (o.sp && !CAREER.best[id]) coach.push(['bea', `Careful: ${o.name.split(' ')[0]} has a special shot, the ${SPECIALS[o.sp].name}. When their meter fills, they glow. ${SPECIALS[o.sp].counter}`]);
+  runCutscene([{ loc: 'locker', title: t.name, cast: ['bea', 'you'], lines: coach },
+                { loc: 'tunnel', venue: t.venue, cast: [id, 'you'], lines: [[id, o.pre, o.boss ? '!' : null], ...(o.spPre ? [[id, o.spPre]] : [])] }], () => showVs(o, t.name, beginCareerMatch));
 }
 function beginCareerMatch() {
   initAudio();
   player.focus = hasPerk('marla') ? 1 : 0;
+  const so = OPPS[S.career.id];
+  S.cpuSp = so && so.sp ? { kind: so.sp, n: 0, need: so.boss ? 5 : 6 } : null;
   MS = freshMS(); S.chLeft = 3; CH = null;
   Object.assign(M, { games: [0, 0], pts: [0, 0], server: 0, over: false, winner: -1 });
   S.mode = 'play'; S.paused = false; S.second = false; S.tips = Math.min(S.tips, 2);
@@ -2735,7 +2979,7 @@ function careerResults() {
   $('rCoins').textContent = '+0'; requestAnimationFrame(tick);
   $('rRank').textContent = after < before ? `#${before} → #${after}` : `#${after}`;
   $('rLongest').textContent = MS.rallyMax + ' shots';
-  $('rPerfects').textContent = MS.perfects + (MS.powers ? ` · ${MS.powers} Power shot${MS.powers > 1 ? 's' : ''}` : '') + (MS.aces ? ` · ${MS.aces} ace${MS.aces > 1 ? 's' : ''}` : '');
+  $('rPerfects').textContent = MS.perfects + (MS.powers ? ` · ${MS.powers} special${MS.powers > 1 ? 's' : ''}` : '') + (MS.aces ? ` · ${MS.aces} ace${MS.aces > 1 ? 's' : ''}` : '');
   show('results', true);
   if (!won) sfx.sadtune();
   if (won) { S.cheer = 4; sfx.fanfare(); roar(0.8); confetti(OPPS[c.id] && OPPS[c.id].boss ? 140 : 50); }
@@ -2751,6 +2995,12 @@ function careerResults() {
       lines = [[c.id, o.win], ...(first ? (o.after || []) : [])];
       const perk = first && PERKS.find(k => k.boss === c.id);
       if (perk && c.id !== 'victor') lines.push(['bea', `You learned something from ${o.name}. New perk, ${perk.name}: ${perk.desc.toLowerCase()}.`]);
+      const learn = first && SP_ORDER.find(k => SPECIALS[k].owner === c.id);
+      if (learn) {
+        if (o.spGive) lines.splice(1, 0, [c.id, o.spGive]);
+        CAREER.sp = learn; saveCareer();
+        lines.push(['bea', `New special shot: the ${SPECIALS[learn].name}. ${SPECIALS[learn].desc} It's in your bag now. Fill your Focus meter to fire it, and swap shots any time in Upgrades.`, '!']);
+      }
     }
     else lines = [['bea', LOSS_LINES[(Math.random() * LOSS_LINES.length) | 0]], ['bea', o.tip]];
     const finale = won && first && c.id === 'victor';
@@ -2788,7 +3038,7 @@ const TROPHIES = [
   { id: 'world1', name: 'World Number 1', desc: 'Reach the top of the ranking' },
   { id: 'zone', name: 'In the Zone', desc: 'Hit 10 Perfect shots in one match' },
   { id: 'marathon', name: 'Marathon', desc: 'Play a rally of 20 shots or more' },
-  { id: 'power', name: 'Unleashed', desc: 'Hit a Power shot' },
+  { id: 'power', name: 'Unleashed', desc: 'Hit a special shot' },
   { id: 'ace', name: 'Ace', desc: 'Serve an ace in a career match' },
   { id: 'bagel', name: 'Bagel', desc: 'Win a match without dropping a game' },
   { id: 'comeback', name: 'Comeback', desc: 'Win after trailing by 2 games' },
@@ -2847,7 +3097,7 @@ function runToasts() {
 function renderTrophies(body) {
   const n = TROPHIES.filter(t => CAREER.trophies[t.id]).length;
   const life = CAREER.life || { perfects: 0, powers: 0, aces: 0, longest: 0 };
-  body.append(el('p', 'blurb', `${n} of ${TROPHIES.length} trophies. Matches ${CAREER.matches}, won ${CAREER.wins}. Perfect shots ${life.perfects}, Power shots ${life.powers}, aces ${life.aces}, longest rally ${life.longest}.`));
+  body.append(el('p', 'blurb', `${n} of ${TROPHIES.length} trophies. Matches ${CAREER.matches}, won ${CAREER.wins}. Perfect shots ${life.perfects}, special shots ${life.powers}, aces ${life.aces}, longest rally ${life.longest}.`));
   const grid = el('div', 'trophies');
   TROPHIES.forEach(t => {
     const got = !!CAREER.trophies[t.id];
@@ -2887,7 +3137,7 @@ function genEndless(seed, level) {
   return { name: pick(E_FIRST, r) + ' ' + pick(E_LAST, r), tag: style.tag + ' · Level ' + level, ai, endless: true,
            look: { skin, hair, style: pick(['short', 'long', 'bob', 'spiky', 'swoop', 'buzz', 'bun', 'bald'], r), shirt: shirtSet, trim: pick(['w', 's', 'y', 'l'], r), racket: pick(['r', 'b', 'g', 'h', 's'], r), bg: pick(['v', 'h', 't', 'r', 'b'], r) },
            goal: pick(E_GOALS, r), pre: pick(E_LINES, r), tip: 'Same game as always. Watch the ball.', win: 'Good match. You earned that.',
-           venue: pick(E_VENUES, r), pts: 70 + 15 * lv, coins: 110 + 10 * lv };
+           venue: pick(E_VENUES, r), pts: 70 + 15 * lv, coins: 110 + 10 * lv, sp: level >= 2 && r() < 0.6 ? pick(SP_ORDER.slice(1), r) : null };
 }
 // The Endless Tour is a run of three-round tournaments. Lose and you're out until the next event.
 const E_EVENTS = ['Harbour Open', 'Riverside Classic', 'Alpine Indoor Cup', 'Sunset Clay Masters', 'Lakeside Lawn Trophy',
@@ -2920,7 +3170,7 @@ function endlessPool() {
       const base = OPPS[cameo];
       o.name = base.name; o.look = base.look; o.ai = { ...base.ai, speed: Math.max(base.ai.speed, o.ai.speed), err: Math.min(base.ai.err, o.ai.err), pace: Math.max(base.ai.pace, o.ai.pace) };
       o.tag = 'Final · ' + base.tag;
-      o.pre = CAMEO_LINES[cameo][0]; o.win = CAMEO_LINES[cameo][1];
+      o.pre = CAMEO_LINES[cameo][0]; o.win = CAMEO_LINES[cameo][1]; o.sp = base.sp;
     }
   }
   OPPS.e0 = o;
@@ -2938,7 +3188,7 @@ function renderEndless(body) {
     const o = OPPS[id];
     const row = el('div', 'opp open');
     const info = el('div', 'oinfo');
-    info.append(el('div', 'oname', o.name), el('div', 'otag', `${o.tag} · ${o.goal.text}`));
+    info.append(el('div', 'oname', o.name), el('div', 'otag', `${o.tag} · ${o.goal.text}` + (o.sp ? ` · Special: ${SPECIALS[o.sp].name}` : '')));
     const right = el('div', 'oright');
     right.append(el('div', 'ostars', ROUNDS[t.round]));
     const b = el('button', 'btn small primary', 'Play');
@@ -3082,7 +3332,7 @@ const PRACTICE = [
   { key: 'returns', n: 5, text: 'Return 5 balls' },
   { key: 'perfects', n: 3, text: 'Hit 3 Perfect shots' },
   { key: 'drops', n: 1, text: 'Swipe down for a drop shot' },
-  { key: 'powers', n: 1, text: 'Chain 3 Perfects, then hit a Power shot' },
+  { key: 'powers', n: 1, text: 'Chain 3 Perfects, then fire a special shot' },
 ];
 let PR = null;
 function startPractice() {

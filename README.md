@@ -50,9 +50,18 @@ The loop:
 - **Stars:** every match has three, for winning, a personal goal (like "Win a game on his serve" or "Hit 8 Perfect shots") and winning by two games or more.
 - **Coins:** every match pays coins, even a loss. Spend them on **Upgrades** (speed, reach, power, touch and serve) or in the **Shop** (caps, shirts and rackets).
 - **World ranking:** wins earn ranking points, from #900 up to #1.
-- **Focus:** three Perfect shots in a row fill the Focus meter, and your next swing becomes a **Power shot**.
+- **Focus:** three Perfect shots in a row fill the Focus meter, and your next swing fires your **special shot**. You start with the Power shot.
+- **Special shots:** every story boss has a signature shot, and beating them teaches it to you. Pick the one you want in Upgrades.
+  - **Meteor** (Marla Stone): a sky-high lob that crashes down and kicks up over their head.
+  - **Frostbite** (Rex Vantage, County): skids off the court low and fast.
+  - **Fireball** (Theo Brant): the fastest shot in the game, trailing flames.
+  - **Lightning** (Rex Vantage, Lawn Series): zaps across to the other corner as it crosses the net.
+  - **Mirage** (Victor Hale): splits into three balls, and only the one with a shadow is real.
+  - **Hurricane** (Mara Quinn): starts wide and curves hard into a corner.
+  - **Phantom** (Silas Crowe): vanishes in flight. Only its shadow stays visible.
+- **Opponents' specials:** these opponents use their shots against you. Their meter (bottom right) fills as they hit. When it's full they glow, and the next shot is the special. Bea explains how to read each one before you first meet them. Endless Tour opponents pick up specials too.
 - **Line calls and challenges:** line judges sometimes call a close ball out by mistake. Tap **Challenge** (three per match) to see a pixel line review; if the ball touched the line, the call is overruled. Computer opponents challenge too.
-- **Boss perks:** every boss teaches you something permanent, like starting matches with a Focus pip or hitting harder Power shots.
+- **Boss perks:** every boss teaches you something permanent, like starting matches with a Focus pip or hitting harder special shots.
 - **Swing assist:** a pause-menu option that widens the timing window and keeps the training rings on.
 - **Practice court:** Bea feeds you balls and teaches each skill. There's a coin bonus the first time.
 - **Daily challenge:** a new opponent every day with a twist (wind, fast balls or golden Perfects) and a bonus for winning.
