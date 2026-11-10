@@ -27,7 +27,12 @@ The art follows the rules in [`art/pixel-anchor.md`](art/pixel-anchor.md): the S
 
 Each of you sees yourself at the bottom of the court.
 
-Online play uses the claude.ai artifact "room" feature, so it only works in the published claude.ai version of the game. Both players need to be signed in to Claude, and the game has to be shared with your friend: add them from the artifact's **Share** menu. Signed-out visitors and public links can't connect to online play. Opened as a plain `index.html`, the game still works but has no online play.
+There are two ways to play online:
+
+- **In a plain browser** (the game hosted as a web page, for example on GitHub Pages): nobody needs an account. **Send invite link** shares a link ending in `?join=CODE`. Opening it in any browser connects the two phones directly (WebRTC, through the free PeerJS service) and the match starts. A few strict networks, such as some offices and schools, block direct connections.
+- **On claude.ai** (the published artifact): online play uses the artifact "room" feature. Both players need to be signed in to Claude, and the game has to be shared with your friend: add them from the artifact's **Share** menu. Signed-out visitors and public links can't connect.
+
+To host it on GitHub Pages: in the repository's **Settings → Pages**, choose **Deploy from a branch**, pick the branch with `index.html` and the `/ (root)` folder. The game is then at `https://<user>.github.io/<repo>/`.
 
 How it stays fair over the network: each phone sends its own position, swings, toss, shots and rulings. The phone the ball is heading toward rules on that ball (hit, out, net, winner or fault), so your swing timing never waits on the connection.
 

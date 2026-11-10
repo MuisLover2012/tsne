@@ -507,7 +507,7 @@ body {
       <button type="button" class="btn primary" id="hostBtn">Host a match</button>
       <button type="button" class="btn" id="onlineBack">Back</button>
     </div>
-    <p class="fine">First time? Your friend needs a free Claude account, and the game must be shared with them: use the Share menu at the top of this page and add them. They open the link signed in, then tap Join.</p>
+    <p class="fine" id="onlineFine">First time? Your friend needs a free Claude account, and the game must be shared with them: use the Share menu at the top of this page and add them. They open the link signed in, then tap Join.</p>
   </div>
 </div>
 
@@ -3784,6 +3784,70 @@ const NET = { room: null, user: null, game: null, role: null, code: null, ep: 0,
               shotN: 0, ptN: 0, swN: 0, seenShot: 0, seenPt: 0, oppSw: null, oppToss: -1, goneAt: 0, names: {} };
 const num = v => typeof v === 'number' && isFinite(v);
 const r3 = v => Math.round(v * 1000) / 1000;
+// In a plain browser (the game hosted as a web page, no claude.ai), matches connect phone to phone
+// over WebRTC through PeerJS: the host's link carries ?join=CODE, and the friend's browser dials the host.
+// The game object below has the same shape as a claude.ai room, so the rest of the online code is shared.
+const inArtifact = () => !!(window.claude && typeof window.claude.use === 'function');
+const p2pMode = () => !NET.room && !inArtifact();
+let peerLib = null;
+function loadPeerLib() {
+  if (window.Peer) return Promise.resolve(window.Peer);
+  if (!peerLib) peerLib = new Promise((res, rej) => {
+    const sc = document.createElement('script');
+    sc.src = (window.__P2P && window.__P2P.lib) || 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
+    sc.onload = () => res(window.Peer); sc.onerror = () => { peerLib = null; rej(new Error('lib')); };
+    document.head.appendChild(sc);
+  });
+  return peerLib;
+}
+async function p2pGame(code, host) {
+  const Peer = await loadPeerLib();
+  const id = 'grass-court-rally-' + code, opts = { debug: 0, ...((window.__P2P && window.__P2P.server) || {}) };
+  const peer = host ? new Peer(id, opts) : new Peer(opts);
+  await new Promise((res, rej) => {
+    const to = setTimeout(() => rej(new Error('timeout')), 15000);
+    peer.on('open', () => { clearTimeout(to); res(); });
+    peer.on('error', e => { clearTimeout(to); rej(e); });
+  });
+  const mine = {}, subs = [];
+  let theirs = null, conn = null, failed = null;
+  const notify = () => subs.forEach(f => { try { f(); } catch (e) {} });
+  const attach = c => {
+    if (conn && conn.open) { c.on('open', () => c.close()); return; }   // one friend per match
+    conn = c;
+    c.on('open', () => { theirs = theirs || {}; c.send({ full: mine }); notify(); });
+    c.on('data', m => {
+      if (!m || typeof m !== 'object') return;
+      if (m.full && typeof m.full === 'object') theirs = { ...m.full };
+      if (m.patch && typeof m.patch === 'object') { theirs = { ...(theirs || {}) }; for (const [k, v] of Object.entries(m.patch)) { if (v === null) delete theirs[k]; else theirs[k] = v; } }
+      notify();
+    });
+    c.on('close', () => { if (conn === c) { conn = null; theirs = null; notify(); } });
+    c.on('error', () => {});
+  };
+  peer.on('error', e => { if (e && e.type === 'peer-unavailable') { failed = 'gone'; notify(); } });
+  peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });   // keep the signalling line for late joiners
+  if (host) peer.on('connection', attach);
+  else {
+    attach(peer.connect(id, { reliable: true, serialization: 'json' }));
+    await new Promise((res, rej) => {
+      const to = setTimeout(() => rej(new Error('timeout')), 15000);
+      const check = () => { if (conn && conn.open) { clearTimeout(to); res(); } else if (failed) { clearTimeout(to); rej(new Error(failed)); } else setTimeout(check, 100); };
+      check();
+    }).catch(e => { try { peer.destroy(); } catch (x) {} throw e; });
+  }
+  return {
+    presence: async patch => {
+      for (const [k, v] of Object.entries(patch)) { if (v === null) delete mine[k]; else mine[k] = JSON.parse(JSON.stringify(v)); }
+      if (conn && conn.open) conn.send({ patch });
+    },
+    peers: () => [{ isMe: true, sameTab: true, by: null, presence: mine },
+                  ...(conn && conn.open && theirs ? [{ isMe: false, sameTab: false, by: null, presence: theirs }] : [])],
+    onPeers: fn => { subs.push(fn); setTimeout(fn, 0); },
+    leave: async () => { try { conn && conn.close(); } catch (e) {} try { peer.destroy(); } catch (e) {} },
+  };
+}
+function joinLink() { return location.origin + location.pathname + '?join=' + NET.code; }
 async function initNet() {
   try {
     if (!window.claude || typeof window.claude.use !== 'function') { renderLobby(); return; }
@@ -3797,12 +3861,14 @@ async function initNet() {
 }
 const GAME_URL = 'https://claude.ai/artifact/CAiPA1KXiCZwCL5u6g3C4W';
 async function sendInvite() {
-  const text = `Play tennis with me in Grass Court Rally! Open the link and tap Join (match ${NET.code.toUpperCase()}).`;
+  const p2p = p2pMode(), url = p2p ? joinLink() : GAME_URL;
+  const text = p2p ? 'Play tennis with me in Grass Court Rally! Open the link to join my match.'
+                   : `Play tennis with me in Grass Court Rally! Open the link and tap Join (match ${NET.code.toUpperCase()}).`;
   const note = $('inviteNote');
-  try { if (navigator.share) { await navigator.share({ title: 'Grass Court Rally', text, url: GAME_URL }); note.textContent = 'Invite sent. Keep this screen open until they join.'; return; } }
+  try { if (navigator.share) { await navigator.share({ title: 'Grass Court Rally', text, url }); note.textContent = 'Invite sent. Keep this screen open until they join.'; return; } }
   catch (e) { if (e && e.name === 'AbortError') return; }
-  try { await navigator.clipboard.writeText(text + ' ' + GAME_URL); note.textContent = 'Link copied. Paste it into a message to your friend, then keep this screen open.'; }
-  catch (e) { note.textContent = 'Send your friend this link: ' + GAME_URL; }
+  try { await navigator.clipboard.writeText(text + ' ' + url); note.textContent = 'Link copied. Paste it into a message to your friend, then keep this screen open.'; }
+  catch (e) { note.textContent = 'Send your friend this link: ' + url; }
 }
 function renderInviteBar() {
   const bar = $('inviteBar'), hosts = NET.game ? [] : lobbyHosts().filter(p => !p.isMe);
@@ -3822,6 +3888,16 @@ function renderLobby() {
   renderInviteBar();
   $('invitePanel').hidden = !(NET.game && NET.role === 'host');
   if (NET.code) $('matchCode').textContent = NET.code;
+  $('onlineFine').textContent = p2pMode()
+    ? 'Works in any browser, no account needed. Phones connect directly, so a few strict networks (some offices and schools) may block it.'
+    : 'First time? Your friend needs a free Claude account, and the game must be shared with them: use the Share menu at the top of this page and add them. They open the link signed in, then tap Join.';
+  if (p2pMode()) {
+    host.hidden = !!NET.game; $('venuePick').hidden = !!NET.game; list.replaceChildren();
+    status.textContent = NET.game && NET.role === 'host' ? 'Your match is open. Send your friend the link, then keep this screen open until they join.'
+      : NET.role === 'guest' ? 'Joining your friend’s match…'
+      : 'Host a match, then send your friend the link. They can play in any browser.';
+    return;
+  }
   if (!NET.room) {
     status.textContent = "Online play needs you signed in to claude.ai, with the game opened from its claude.ai link. Signed-out and public-link visitors can't connect.";
     host.hidden = true; list.replaceChildren(); return;
@@ -3851,28 +3927,38 @@ function renderLobby() {
 }
 async function enterGame(code) {
   if (NET.game) { try { await NET.game.leave(); } catch (e) {} NET.game = null; }
-  try { NET.game = await NET.room.join('gcr-' + code); }
-  catch (e) { NET.game = null; $('onlineStatus').textContent = 'That match could not be opened. Try again.'; return false; }
+  try { NET.game = NET.room ? await NET.room.join('gcr-' + code) : await p2pGame(code, NET.role === 'host'); }
+  catch (e) {
+    NET.game = null; NET.role = null; renderLobby();
+    $('onlineStatus').textContent = p2pMode() && /gone|timeout/.test(e && e.message) && NET.wantJoin
+      ? "Couldn't reach your friend's match. It may have ended: ask them to host again and send a new link."
+      : 'That match could not be opened. Check your connection and try again.';
+    return false;
+  }
   NET.code = code;
   NET.game.onPeers(onGamePeers, () => { if (S.online) endOnline('The connection to your friend was lost.'); else { NET.game = null; renderLobby(); } });
   NET.game.presence({ ep: 0, shot: null, pt: null, go: null }).catch(() => {});
   return true;
 }
 async function hostMatch() {
-  if (!NET.room) return;
+  if (!NET.room && !p2pMode()) return;
+  NET.wantJoin = false;
   initAudio();
   const code = Math.random().toString(36).slice(2, 6).padEnd(4, '0');
   NET.role = 'host';
   if (!(await enterGame(code))) return;
-  NET.room.presence({ host: code }).catch(() => {});
+  if (NET.room) NET.room.presence({ host: code }).catch(() => {});
+  $('inviteNote').textContent = p2pMode() ? 'Send the link to your friend. When they open it in their browser, the match starts.'
+    : 'Send the link to your friend. When they open it, a Join button is waiting for them on the start screen.';
   renderLobby();
 }
 async function joinMatch(code) {
-  if (!NET.room) return;
+  if (!NET.room && !p2pMode()) return;
   initAudio();
-  NET.role = 'guest';
+  NET.role = 'guest'; NET.wantJoin = true;
+  renderLobby();
   if (!(await enterGame(code))) return;
-  NET.room.presence({ host: null }).catch(() => {});
+  if (NET.room) NET.room.presence({ host: null }).catch(() => {});
   renderLobby();
 }
 function oppPeer() { return NET.game ? NET.game.peers().find(p => !p.sameTab) || null : null; }
@@ -4044,6 +4130,10 @@ function start(data) {
   applyKit(); seatKids();
   initNet();
   initCloud();
+  try {                                                     // opened from a friend's invite link
+    const j = new URLSearchParams(location.search).get('join');
+    if (j && /^[a-z0-9]{4}$/i.test(j) && !inArtifact()) { show('menu', false); show('online', true); joinMatch(j.toLowerCase()); }
+  } catch (e) {}
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
   requestAnimationFrame(frame);
 }
