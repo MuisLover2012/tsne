@@ -62,7 +62,7 @@ body {
   outline: 3px solid var(--panel-edge); outline-offset: -6px;
   padding: 7px 12px 8px;
   display: grid;
-  grid-template-columns: 10px 3.2em 2.4em 2.4em;
+  grid-template-columns: 10px 4.3em 2.4em 2.4em;
   column-gap: 6px;
   align-items: center;
   font-variant-numeric: tabular-nums;
@@ -248,6 +248,15 @@ body {
 .pmid { min-width: 0; }
 .rank { font-family: var(--display); font-weight: 700; font-size: 40px; line-height: 1; color: var(--ball); text-shadow: 3px 3px 0 var(--ink); }
 .rank.top { color: #ffcd75; }
+.rankbtn { background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--display); text-align: left; }
+.rankbtn::after { content: " ▸"; font-size: 18px; color: var(--panel-dim); text-shadow: none; }
+.ranklist { display: flex; flex-direction: column; gap: 4px; }
+.rrow { display: grid; grid-template-columns: 3.4em auto 1fr; gap: 10px; align-items: center; background: var(--ink); padding: 6px 8px; }
+.rrow .portrait { width: 36px; height: 36px; }
+.rrow.me { outline: 3px solid var(--ball); outline-offset: -3px; }
+.rnum { font-family: var(--display); font-weight: 700; font-size: 20px; color: var(--panel-dim); font-variant-numeric: tabular-nums; }
+.rrow.me .rnum { color: var(--ball); }
+.blank { width: 36px; height: 36px; background: var(--panel); border: 3px solid var(--ink); }
 .pname { font-family: var(--label); font-size: 13px; text-transform: uppercase; overflow-wrap: anywhere; }
 .wallet { font-family: var(--label); font-size: 12px; text-transform: uppercase; text-align: right; display: grid; gap: 4px; }
 .wallet span { color: var(--ball); font-size: 16px; }
@@ -417,7 +426,7 @@ body {
   <div class="card wide">
     <div class="pcard">
       <canvas id="youPortrait" class="portrait big" width="24" height="24"></canvas>
-      <div class="pmid"><div class="eyebrow">World ranking</div><div class="rank" id="cRank">#900</div><div class="pname" id="cName">Rookie</div></div>
+      <div class="pmid"><div class="eyebrow">World ranking</div><button type="button" class="rank rankbtn" id="cRank" aria-label="Open the world ranking">#900</button><div class="pname" id="cName">Rookie</div></div>
       <div class="wallet"><div><span id="cCoins">0</span> coins</div><div><span id="cStars">0</span> ★</div></div>
     </div>
     <div class="tabs" role="tablist">
@@ -687,6 +696,7 @@ function setVenue(v) {
   if (!v || !VENUES[v]) return;
   const changed = v !== VEN_ID;
   VEN = VENUES[v]; VEN_ID = v; SURF = VEN.surf;
+  seatKids();
   if (changed && VW) { bakeCourt(); seatCrowd(); }
 }
 const hash2 = (a, b) => { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -861,7 +871,12 @@ function click(vol) {
 }
 const sfx = {
   hit(near) { const v = near ? 0.8 : 0.4; click(v); tone(520, 0.06, 0.08 * v); },
-  bounce(near) { tone(160, 0.05, near ? 0.1 : 0.05, 'square'); },
+  bounce(near) {
+    const c = VEN.court, v = near ? 1 : 0.5;
+    if (c === 'clay') tone(120, 0.07, 0.11 * v, 'triangle');
+    else if (c === 'grass') tone(150, 0.05, 0.09 * v, 'sine');
+    else tone(c === 'indoor' ? 240 : 200, 0.04, 0.09 * v, 'square');
+  },
   net() { tone(90, 0.16, 0.12, 'sawtooth'); },
   win() { tone(660, 0.1, 0.08); tone(880, 0.1, 0.08, 'square', 0.1); tone(1320, 0.18, 0.08, 'square', 0.2); },
   lose() { tone(392, 0.12, 0.08); tone(262, 0.24, 0.08, 'square', 0.12); },
@@ -1182,6 +1197,7 @@ function fault() {
   showCall('Fault', 'Second serve', false); sfx.net();
   setHint();
   if (S.online) netPoint('fault', null, 'Fault');
+  fetchBall();
 }
 function playerHit(dx, e) {
   // e: -1 swung early ... 0 perfect ... +1 swung late. Power comes from how quickly you lifted the tap.
@@ -1263,7 +1279,7 @@ function cpuHit(dx) {
 
 function endPoint(winner, reason) {
   if (ball.dead) return;
-  if (S.practice) { practicePoint(winner); return; }
+  if (S.practice) { practicePoint(winner); fetchBall(); return; }
   ball.dead = true;
   S.state = 'over'; S.timer = 1.9; S.second = false; S.faultOnly = false;
   const wi = winner === 'p' ? 0 : 1;
@@ -1289,6 +1305,7 @@ function endPoint(winner, reason) {
   if ((S.rally || 0) >= 8 || ball.power) { roar(Math.min(1, 0.4 + (S.rally || 0) * 0.04)); S.cheer = 2.4; }
   if (S.online) netPoint('point', winner, reason);
   if (S.career) updateGoalChip();
+  fetchBall();
 }
 function onBounce() {
   if (S.online && ball.lastHitter === 'p') return;   // your friend's phone rules on your shot
@@ -1492,6 +1509,64 @@ function renderRally() {
   if (n >= 10 && n % 5 === 0) { roar(0.35); S.cheer = Math.max(S.cheer, 0.8); }
 }
 
+// ---------- Court life: umpire and ball kids ----------
+// The venues grow as you climb: no officials at the park, an umpire from County Clay,
+// and ball kids (you used to be one) who sprint out to fetch the ball after each point.
+const KIDS = [];
+function seatKids() {
+  KIDS.length = 0;
+  if (VEN_ID === 'park') return;
+  const spots = [[POST_X + 0.7, NET_Y - 0.25]];
+  if (VEN_ID !== 'clay') spots.push([DHW + 3.4, -3.3], [-(DHW + 3.4), L + 3.3]);
+  if (VEN_ID === 'centre') spots.push([-(DHW + 3.4), -3.3], [DHW + 3.4, L + 3.3]);
+  spots.forEach(([x, y]) => KIDS.push({ hx: x, hy: y, x, y, tx: x, ty: y, run: 0, busy: false, moving: false }));
+}
+function fetchBall() {
+  if (!KIDS.length || S.online) return;
+  if (Math.abs(ball.x) > DHW + 7 || ball.y < -6 || ball.y > L + 6) return;
+  let best = null, bd = 1e9;
+  for (const k of KIDS) { const d = Math.hypot(k.x - ball.x, k.y - ball.y); if (!k.busy && d < bd) { bd = d; best = k; } }
+  if (best) { best.busy = true; best.tx = ball.x; best.ty = ball.y; }
+}
+function stepKids(dt) {
+  for (const k of KIDS) {
+    if (k.busy && S.state === 'serve') { k.busy = false; k.tx = k.hx; k.ty = k.hy; }    // new point: back to your spot
+    const dx = k.tx - k.x, dy = k.ty - k.y, d = Math.hypot(dx, dy), step = 9 * dt;
+    k.moving = d > 0.05;
+    if (d <= step) {
+      k.x = k.tx; k.y = k.ty;
+      if (k.busy) {                                          // picked it up
+        k.busy = false; k.tx = k.hx; k.ty = k.hy;
+        if (S.state === 'over') { ball.y = -60; ball.trail.length = 0; }
+      }
+    } else { k.x += dx / d * step; k.y += dy / d * step; }
+    k.run += dt * 14;
+  }
+}
+function drawKid(k) {
+  const [fx, fy] = pp(k.x, k.y, 0);
+  const crouch = !k.moving;
+  const h = crouch ? 7 : 10;
+  rect(fx - 3, fy - h - 1, 7, h + 1, PAL.k);                // outline block
+  rect(fx - 2, fy - h, 5, 1, PAL.g);                        // cap
+  rect(fx - 2, fy - h + 1, 5, 2, PAL.o);                    // face
+  rect(fx - 2, fy - h + 3, 5, crouch ? 3 : 4, PAL.h);       // Meadow purple shirt
+  if (crouch) rect(fx - 2, fy - 1, 5, 1, PAL.n);
+  else { const f = Math.floor(k.run) % 2; rect(fx - 2 + f * 2, fy - 3, 1, 3, PAL.n); rect(fx + 1 - f * 2, fy - 3, 1, 3, PAL.n); }
+}
+function drawUmpire() {
+  if (VEN_ID === 'park') return;
+  const [cx, cy] = pp(-(POST_X + 1.3), NET_Y, 0);
+  rect(cx - 4, cy - 24, 1, 24, PAL.k); rect(cx + 3, cy - 24, 1, 24, PAL.k);          // legs
+  for (const yy of [cy - 7, cy - 14, cy - 21]) rect(cx - 4, yy, 8, 1, PAL.M);          // rungs
+  rect(cx - 6, cy - 26, 13, 3, PAL.k); rect(cx - 5, cy - 25, 11, 1, PAL.n);            // seat
+  rect(cx - 4, cy - 34, 9, 9, PAL.k);                                                  // umpire outline
+  rect(cx - 3, cy - 33, 7, 4, PAL.s);                                                  // face
+  rect(cx - 3, cy - 34, 7, 1, PAL.w);                                                  // hat
+  rect(cx - 3, cy - 29, 7, 4, PAL.v);                                                  // navy blazer
+  rect(cx, cy - 29, 1, 2, PAL.w);                                                      // shirt
+}
+
 // ---------- Pixel drawing ----------
 function rect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); }
 function pEllipse(cx, cy, rx, ry, c) {
@@ -1610,6 +1685,8 @@ function render() {
     { y: cpu.y, f: () => drawPlayer(cpu, false) },
     { y: player.y, f: () => drawPlayer(player, true) },
     { y: NET_Y, f: () => ctx.drawImage(netCv, 0, 0) },
+    { y: NET_Y + 0.01, f: drawUmpire },
+    ...KIDS.map(k => ({ y: k.y, f: () => drawKid(k) })),
     { y: ball.y - 0.01, f: drawBall },
   ];
   items.sort((a, b) => b.y - a.y).forEach(it => it.f());
@@ -2058,6 +2135,7 @@ function renderHub() {
   if (HUB_TAB === 'tour') renderTour(body);
   else if (HUB_TAB === 'upgrades') renderUpgrades(body);
   else if (HUB_TAB === 'shop') renderShop(body);
+  else if (HUB_TAB === 'ranks') renderRanks(body);
   else if (typeof renderTrophies === 'function') renderTrophies(body);
 }
 function renderTour(body) {
@@ -2098,6 +2176,43 @@ function renderTour(body) {
     body.append(sec);
   });
   if (CAREER.champion && typeof renderEndless === 'function') renderEndless(body);
+}
+// ---------- World ranking board ----------
+// Story characters hold fixed places; everyone else at a given rank is generated from that rank.
+const PINNED = { 1: 'victor', 3: 'grey', 8: 'rex2', 12: 'odette', 15: 'lucia', 34: 'theo', 41: 'sasha', 47: 'kenji', 120: 'ines', 133: 'hugo', 404: 'marla', 610: 'toby', 777: 'pip' };
+function npcAt(r) {
+  if (PINNED[r]) return { id: PINNED[r], name: OPPS[PINNED[r]].name, look: OPPS[PINNED[r]].look };
+  let s2 = r * 7919 + 13;
+  const rr = () => ((s2 = (s2 * 16807) % 2147483647) / 2147483647);
+  return { name: pick(E_FIRST, rr) + ' ' + pick(E_LAST, rr), look: genEndless(r * 31 + 7, 1).look };
+}
+function pointsToPass(R) { return R <= 1 ? 0 : Math.max(1, Math.ceil(320 * Math.log(900 / (R - 0.5)) - CAREER.pts)); }
+function renderRanks(body) {
+  const R = rankFor(CAREER.pts);
+  const head = el('div', 'tierhead');
+  head.append(el('h3', null, 'World ranking'), el('span', 'rules', CAREER.pts + ' points'));
+  const above = R > 1 ? npcAt(R - 1) : null;
+  body.append(head, el('p', 'blurb', R === 1 ? "You're World Number 1. Keep winning on the Endless Tour to stay there." :
+    `${pointsToPass(R)} more point${pointsToPass(R) === 1 ? '' : 's'} to pass ${above.name} at #${R - 1}. First wins against an opponent earn the most points.`));
+  const list = el('div', 'ranklist');
+  for (let k = Math.max(1, R - 5); k <= R + 2; k++) {
+    const who = k < R ? npcAt(k) : k === R ? null : npcAt(k - 1);
+    const row = el('div', 'rrow' + (who ? '' : ' me'));
+    let pic;
+    if (!who) { pic = el('canvas', 'portrait'); drawPortrait(pic, CAST.you.look); }
+    else if (who.look) { pic = el('canvas', 'portrait'); drawPortrait(pic, who.look); }
+    else pic = el('div', 'blank');
+    const info = el('div', 'oinfo');
+    const beaten = who && who.id && CAREER.best[who.id];
+    info.append(el('div', 'oname', who ? who.name : CAREER.name + ' (you)'),
+                el('div', 'otag', who ? (who.id ? (beaten ? 'Story rival · beaten' : 'Story rival') : 'Touring pro') : 'Climbing'));
+    row.append(el('div', 'rnum', '#' + k), pic, info);
+    list.append(row);
+  }
+  body.append(list);
+  const back = el('button', 'btn small', 'Back to the tour');
+  back.type = 'button'; back.addEventListener('click', () => { HUB_TAB = 'tour'; renderHub(); });
+  body.append(back);
 }
 function renderUpgrades(body) {
   body.append(el('p', 'blurb', 'Spend coins on your game. Every match earns coins, even a loss.'));
@@ -2142,7 +2257,7 @@ function startCareerMatch(id) {
   PS = statsFor(CAREER.stats); RULES = { ...t.rules };
   S.career = { id, tier: ti, goal: o.goal, coins: t.coins, pts: o.pts, name: o.name }; S.mod = {};
   stageScene(id, t.venue);
-  $('nameC').textContent = o.name.split(' ')[0];
+  $('nameC').textContent = o.name.split(' ')[0].slice(0, 6);
   runScene([[id, o.pre], ['bea', o.tip]], () => showVs(o, t.name, beginCareerMatch));
 }
 function beginCareerMatch() {
@@ -2170,7 +2285,8 @@ function careerResults() {
   CAREER.coins += coins; CAREER.pts += pts; CAREER.matches++; if (won) CAREER.wins++;
   if (!special) { CAREER.h2h = CAREER.h2h || {}; const r = CAREER.h2h[c.id] || [0, 0]; r[won ? 0 : 1]++; CAREER.h2h[c.id] = r; }
   if (won && !special) CAREER.best[c.id] = Math.max(prev, n);
-  if (c.endless && typeof endlessResult === 'function') endlessResult(won);
+  const tourOut = c.endless ? endlessResult(won) : null;
+  if (tourOut && tourOut.bonus) { CAREER.coins += tourOut.bonus; coins += tourOut.bonus; }
   const after = rankFor(CAREER.pts);
   const life = CAREER.life = CAREER.life || { perfects: 0, powers: 0, aces: 0, longest: 0 };
   life.perfects += MS.perfects; life.powers += MS.powers || 0; life.aces += MS.aces; life.longest = Math.max(life.longest, MS.rallyMax);
@@ -2178,7 +2294,7 @@ function careerResults() {
   saveCareer();
   // results card
   S.mode = 'end'; hideCall(); updateGoalChip(); renderFocus(); renderRally(); setHint();
-  $('rEyebrow').textContent = 'vs ' + c.name;
+  $('rEyebrow').textContent = (c.endless ? curTourLabel(c) + ' · ' : '') + 'vs ' + c.name;
   $('rTitle').textContent = won ? 'Victory' : 'Defeat';
   $('rTitle').classList.toggle('good', won);
   $('rScore').textContent = `${M.games[0]}–${M.games[1]}`;
@@ -2195,7 +2311,9 @@ function careerResults() {
     const o = OPPS[c.id];
     let lines;
     if (c.daily) lines = won ? [['bea', 'Daily challenge done. A new one arrives tomorrow.']] : [['bea', LOSS_LINES[(Math.random() * LOSS_LINES.length) | 0]]];
-    else if (c.endless) lines = won ? [['bea', 'Another one. The ranking keeps climbing.']] : [['bea', LOSS_LINES[(Math.random() * LOSS_LINES.length) | 0]]];
+    else if (c.endless && tourOut && tourOut.title) lines = [['bea', `${tourOut.name} champion! That's ${CAREER.endless.titles} title${CAREER.endless.titles === 1 ? '' : 's'} on the Endless Tour.`]];
+    else if (c.endless && won) lines = [['bea', `Through to the ${ROUNDS[tourOut.round + 1]}. Keep it going.`]];
+    else if (c.endless) lines = [['bea', `Out in the ${ROUNDS[tourOut.round]}. There's a new tournament next week.`]];
     else if (won) lines = [[c.id, o.win], ...(first ? (o.after || []) : [])];
     else lines = [['bea', LOSS_LINES[(Math.random() * LOSS_LINES.length) | 0]], ['bea', o.tip]];
     const finale = won && first && c.id === 'victor';
@@ -2204,7 +2322,9 @@ function careerResults() {
     stageScene(special ? null : c.id, null);
     runScene(lines, () => { if (typeof checkTrophies === 'function') checkTrophies(); openCareer(); });
   };
-  $('rAgain').onclick = () => { show('results', false); if (c.daily) startDaily(); else if (c.endless) startEndlessMatch(c.id); else startCareerMatch(c.id); };
+  $('rAgain').textContent = c.endless ? (won ? 'Next round' : 'New tournament') : 'Play again';
+  if (tourOut && tourOut.title) $('rAgain').textContent = 'Next tournament';
+  $('rAgain').onclick = () => { show('results', false); if (c.daily) startDaily(); else if (c.endless) { endlessPool(); startEndlessMatch('e0'); } else startCareerMatch(c.id); };
   if (typeof checkTrophies === 'function') checkTrophies();
 }
 
@@ -2226,6 +2346,8 @@ const TROPHIES = [
   { id: 'loaded', name: 'Fully Loaded', desc: 'Max out every upgrade' },
   { id: 'onfire', name: 'On Fire', desc: 'Win 5 Endless Tour matches in a row' },
   { id: 'allstars', name: 'Completionist', desc: 'Earn every star in the story' },
+  { id: 'title', name: 'Tour Winner', desc: 'Win an Endless Tour tournament' },
+  { id: 'titles5', name: 'Five Titles', desc: 'Win 5 Endless Tour tournaments' },
 ];
 let LAST = null;   // the last finished career match, for match-based trophies
 function trophyEarned(t) {
@@ -2246,6 +2368,8 @@ function trophyEarned(t) {
     case 'comeback': return !!L2 && L2.won && L2.deficit >= 2;
     case 'loaded': return STAT_KEYS.every(k => CAREER.stats[k] >= UPGRADE_COST.length);
     case 'onfire': return CAREER.endless.streak >= 5;
+    case 'title': return (CAREER.endless.titles || 0) >= 1;
+    case 'titles5': return (CAREER.endless.titles || 0) >= 5;
     case 'allstars': return TIERS.every(t2 => t2.opps.every(id => (b[id] || 0) >= 3));
   }
   return false;
@@ -2312,27 +2436,44 @@ function genEndless(seed, level) {
            goal: pick(E_GOALS, r), pre: pick(E_LINES, r), tip: 'Same game as always. Watch the ball.', win: 'Good match. You earned that.',
            venue: pick(E_VENUES, r), pts: 70 + 15 * lv, coins: 110 + 10 * lv };
 }
-function endlessPool() {
+// The Endless Tour is a run of three-round tournaments. Lose and you're out until the next event.
+const E_EVENTS = ['Harbour Open', 'Riverside Classic', 'Alpine Indoor Cup', 'Sunset Clay Masters', 'Lakeside Lawn Trophy',
+  'Capital Championships', 'Coastal Grass Open', 'Desert Hard Court Cup', 'Northern Lights Indoors', 'Orchard Invitational'];
+const ROUNDS = ['Quarterfinal', 'Semifinal', 'Final'];
+function curTour() {
   const e = CAREER.endless;
-  if (!e.seed) e.seed = 1 + Math.floor(Math.random() * 1e6);
-  const level = 1 + e.wins;
-  ['e0', 'e1', 'e2'].forEach((id, i) => { OPPS[id] = genEndless(e.seed + i, level + i); });
-  return ['e0', 'e1', 'e2'];
+  if (!e.tour) {
+    const seed = 1 + Math.floor(Math.random() * 1e6);
+    let s2 = seed;
+    const r = () => ((s2 = (s2 * 16807) % 2147483647) / 2147483647);
+    e.tour = { seed, round: 0, name: pick(E_EVENTS, r), venue: pick(E_VENUES, r) };
+  }
+  return e.tour;
+}
+function endlessPool() {
+  const t = curTour(), level = 1 + CAREER.endless.wins;
+  const o = genEndless(t.seed + t.round * 101, level + t.round);
+  o.venue = t.venue; o.tag = ROUNDS[t.round] + ' · ' + o.tag;
+  if (t.round === 2) { o.coins += 60; o.pts += 40; }
+  OPPS.e0 = o;
+  return ['e0'];
 }
 function renderEndless(body) {
-  const e = CAREER.endless;
+  const e = CAREER.endless, t = curTour();
   const sec = el('section', 'tier');
   const head = el('div', 'tierhead');
-  head.append(el('h3', null, 'Endless Tour'), el('span', 'rules', 'First to 3 games'));
-  sec.append(head, el('p', 'blurb', `Wins ${e.wins} · Streak ${e.streak} · Best streak ${e.best}. Every win earns ranking points.`));
-  endlessPool().forEach((id, i) => {
+  head.append(el('h3', null, t.name), el('span', 'rules', 'Endless Tour · first to 3'));
+  const prog = ROUNDS.map((rn, i) => (i < t.round ? '✓ ' : i === t.round ? '▸ ' : '') + rn).join('   ');
+  sec.append(head, el('p', 'blurb', `${VENUE_NAMES[t.venue]} · ${prog}`),
+             el('p', 'blurb', `Titles ${e.titles || 0} · Wins ${e.wins} · Streak ${e.streak} · Best ${e.best}. Win the final for a ${300 + 25 * e.wins}-coin title bonus.`));
+  endlessPool().forEach(id => {
     const o = OPPS[id];
     const row = el('div', 'opp open');
     const info = el('div', 'oinfo');
-    info.append(el('div', 'oname', o.name), el('div', 'otag', `${o.tag} · ${VENUE_NAMES[o.venue]} · ${o.goal.text}`));
+    info.append(el('div', 'oname', o.name), el('div', 'otag', `${o.tag} · ${o.goal.text}`));
     const right = el('div', 'oright');
-    right.append(el('div', 'ostars', i === 0 ? 'Next' : i === 1 ? 'Harder' : 'Hardest'));
-    const b = el('button', 'btn small' + (i === 0 ? ' primary' : ''), 'Play');
+    right.append(el('div', 'ostars', ROUNDS[t.round]));
+    const b = el('button', 'btn small primary', 'Play');
     b.type = 'button'; b.addEventListener('click', () => startEndlessMatch(id));
     right.append(b);
     row.append(portraitCanvas(o.look), info, right);
@@ -2348,15 +2489,24 @@ function startEndlessMatch(id) {
   ['career', 'menu', 'end', 'online', 'results', 'pause'].forEach(id => show(id, false));
   setOpponent({ ...o.ai, marker: false, look: o.look });
   PS = statsFor(CAREER.stats); RULES = { toWin: 3, by: 1 };
-  S.career = { id, tier: 5, goal: o.goal, coins: o.coins, pts: o.pts, name: o.name, endless: true }; S.mod = {};
+  const t = curTour();
+  S.career = { id, tier: 5, goal: o.goal, coins: o.coins, pts: o.pts, name: o.name, endless: true, tourName: t.name, roundName: ROUNDS[t.round] }; S.mod = {};
   stageScene(id, o.venue);
-  $('nameC').textContent = o.name.split(' ')[0];
-  runScene([[id, o.pre]], () => showVs(o, 'Endless Tour · ' + VENUE_NAMES[o.venue], beginCareerMatch));
+  $('nameC').textContent = o.name.split(' ')[0].slice(0, 6);
+  runScene([[id, o.pre]], () => showVs(o, t.name + ' · ' + ROUNDS[t.round], beginCareerMatch));
 }
+function curTourLabel(c) { return c.tourName ? c.tourName + ' ' + c.roundName : 'Endless Tour'; }
 function endlessResult(won) {
-  const e = CAREER.endless;
-  if (won) { e.wins++; e.streak++; e.best = Math.max(e.best, e.streak); e.seed = 1 + Math.floor(Math.random() * 1e6); }
-  else e.streak = 0;
+  const e = CAREER.endless, t = curTour(), round = t.round, out = { bonus: 0, title: false, round, name: t.name };
+  if (won) {
+    e.wins++; e.streak++; e.best = Math.max(e.best, e.streak);
+    if (round >= 2) {
+      e.titles = (e.titles || 0) + 1; e.titleList = (e.titleList || []).concat(t.name).slice(-20);
+      out.title = true; out.bonus = 300 + 25 * (e.wins - 1);
+      e.tour = null;
+    } else t.round++;
+  } else { e.streak = 0; e.tour = null; }
+  return out;
 }
 
 // ---------- Cloud save (db capability, private per player) ----------
@@ -2561,7 +2711,7 @@ function startDaily() {
   S.career = { id: 'daily', tier: d.tier, goal: o.goal, coins: already ? 40 : d.coins, pts: 20, name: o.name, daily: true };
   stageScene('daily', o.venue);
   S.mod = { wind: d.wind, fast: d.mod === 'fast' ? 1.2 : 1, golden: d.mod === 'golden' };
-  $('nameC').textContent = o.name.split(' ')[0];
+  $('nameC').textContent = o.name.split(' ')[0].slice(0, 6);
   runScene([['daily', o.pre], ['bea', `Daily challenge. ${MODS[d.mod].name}: ${MODS[d.mod].desc.toLowerCase()}.`]],
     () => showVs(o, 'Daily · ' + MODS[d.mod].name, beginCareerMatch));
 }
@@ -2569,6 +2719,7 @@ function startDaily() {
 $('careerBtn').addEventListener('click', () => { initAudio(); openCareer(); });
 $('careerBack').addEventListener('click', () => { show('career', false); S.mode = 'menu'; show('menu', true); });
 document.querySelectorAll('#career .tab').forEach(b => b.addEventListener('click', () => { HUB_TAB = b.dataset.tab; renderHub(); }));
+$('cRank').addEventListener('click', () => { HUB_TAB = 'ranks'; renderHub(); });
 $('dialog').addEventListener('click', advanceScene);
 $('dForm').addEventListener('submit', e => {
   e.preventDefault();
@@ -2795,6 +2946,7 @@ function frame(t) {
   if (S.hitstop > 0) S.hitstop -= dt;
   else if (S.mode === 'play' && !S.paused) update(dt);
   stepParts(dt);
+  stepKids(dt);
   if (S.shake > 0) {
     S.shake = Math.max(0, S.shake - dt * 6);
     const k = Math.round(S.shake * SCALE);
@@ -2816,7 +2968,7 @@ function start(data) {
   }
   renderBoard();
   CAREER = loadCareer();
-  applyKit();
+  applyKit(); seatKids();
   initNet();
   initCloud();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);

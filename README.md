@@ -48,8 +48,10 @@ The loop:
 - **Focus:** three Perfect shots in a row fill the Focus meter, and your next swing becomes a **Power shot**.
 - **Practice court:** Bea feeds you balls and teaches each skill. There's a coin bonus the first time.
 - **Daily challenge:** a new opponent every day with a twist (wind, fast balls or golden Perfects) and a bonus for winning.
-- **Endless Tour:** opens after the final. Opponents keep getting harder as you chase and defend World #1.
-- **Trophies:** 16 to collect.
+- **Endless Tour:** opens after the final. Play named three-round tournaments (quarterfinal, semifinal, final) for titles and a big coin bonus. Lose and you're out until the next event. Opponents keep getting harder as you chase and defend World #1.
+- **World ranking board:** tap your ranking in the hub to see the players around you, including your story rivals, and how many points you need to pass the next one.
+- **Court life:** the venues grow as you climb, from no officials at the park to an umpire and ball kids who fetch the ball after every point.
+- **Trophies:** 18 to collect.
 
 Your career saves on your device. In the claude.ai version it also saves privately to your account (only for viewers allowed to write data, such as the owner and Contributors).
 
