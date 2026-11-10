@@ -3227,10 +3227,15 @@ function bust(who) {
   const c = document.createElement('canvas'); drawPortrait(c, { ...look, bg: null });
   const d = document.createElement('canvas'); d.width = c.width; d.height = c.height;
   const dx = d.getContext('2d'); dx.drawImage(c, 0, 0);
-  const img = dx.getImageData(0, 0, d.width, d.height), px = img.data, nn = hex(PAL.n);
-  for (let y = 0; y < d.height; y++) for (let x = 0; x < d.width; x++) {
-    const o = (y * d.width + x) * 4;
-    if (px[o + 3] && bay(x, y) < 0.5) { px[o] = nn[0]; px[o + 1] = nn[1]; px[o + 2] = nn[2]; }
+  // dim by stepping each colour one shade down the palette, so faces stay crisp
+  const img = dx.getImageData(0, 0, d.width, d.height), px = img.data;
+  const DARKER = { s: 'o', o: 'r', r: 'h', h: 'n', w: 'm', m: 'M', M: 'n', l: 'g', g: 't', t: 'v', y: 'c', c: 'b', b: 'v', v: 'n', n: 'k', k: 'k' };
+  const lut = {};
+  Object.entries(DARKER).forEach(([a, b2]) => { lut[hex(PAL[a]).join()] = hex(PAL[b2]); });
+  for (let o = 0; o < px.length; o += 4) {
+    if (!px[o + 3]) continue;
+    const to = lut[px[o] + ',' + px[o + 1] + ',' + px[o + 2]];
+    if (to) { px[o] = to[0]; px[o + 1] = to[1]; px[o + 2] = to[2]; }
   }
   dx.putImageData(img, 0, 0);
   return (bustCache[key] = { on: c, dim: d });
