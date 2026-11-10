@@ -8,8 +8,8 @@ Open `index.html` in a phone browser. It's a single file with no build step and 
 
 - **Move:** keep one finger on the screen and drag to move.
 - **Swing:** tap with another finger as the ball arrives. The racket winds back while you hold and swings when you lift.
-- **Power:** a quick tap hits hard and deep. Hold a little longer for a softer shot, or hold until the bar flashes for a drop shot. A bar above your player shows the power while you hold.
-- **Aim:** tap the spot on your opponent's side where you want the ball to land. A target ring shows it while you hold, and you can slide it before letting go. Tap your own side and the game picks the open court for you.
+- **Power:** sliding keeps the power full, so lift right after aiming to hit hard. Hold still a moment for a softer shot, or until the bar flashes for a drop shot. A bar above your player shows the power.
+- **Aim:** hold your swing thumb down and a target ring appears on your opponent's side, starting on the open court. Slide your thumb to move the ring, then lift to hit there. Your thumb can stay low on the screen, so it never covers the target. Touching their half directly starts the ring at that spot.
 - **Timing:** perfect timing lands on your target. Early or late swings drift off it, and swinging far off can mishit.
 - **Serve:** tap to toss, then tap again at the top of the toss. Two faults lose the point.
 

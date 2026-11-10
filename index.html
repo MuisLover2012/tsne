@@ -433,8 +433,8 @@ body {
     <dl class="how">
       <dt>Move</dt><dd>Keep one finger on the screen and drag to move.</dd>
       <dt>Swing</dt><dd>Tap with another finger as the ball arrives. The racket swings when you lift it.</dd>
-      <dt>Power</dt><dd>A quick tap hits hard and deep. Hold a little longer for a softer shot, or hold until the bar flashes for a drop shot.</dd>
-      <dt>Aim</dt><dd>Tap the spot on your opponent's side where you want the ball to land. Tap your own side and the game picks the open court.</dd>
+      <dt>Power</dt><dd>Lift right after aiming to hit hard. Hold still a moment for a softer shot, or until the bar flashes for a drop shot.</dd>
+      <dt>Aim</dt><dd>Hold your swing thumb down and a target appears on their side. Slide your thumb to move it, then lift to hit there.</dd>
       <dt>Timing</dt><dd>Perfect timing lands on your target. Early or late swings drift off it.</dd>
       <dt>Serve</dt><dd>Tap to toss, then tap again at the top. Two faults lose the point.</dd>
     </dl>
@@ -1122,7 +1122,7 @@ function setHint() {
   if (S.mode === 'play' && !S.paused) {
     if (S.state === 'serve' && M.server === 0) h = S.toss < 0 ? (S.second ? 'Second serve: tap to toss' : 'Tap to toss') : 'Tap again at the top';
     else if (S.state === 'serve' && M.server === 1 && S.tips < 3) h = 'Get ready to return';
-    else if (S.state === 'rally' && S.tips < 4) h = 'Tap their side where the ball should land';
+    else if (S.state === 'rally' && S.tips < 4) h = 'Hold, slide to aim, lift to hit';
   }
   const el = $('hint');
   if (el.textContent !== h) el.textContent = h;
@@ -1228,15 +1228,33 @@ function aimFromTouch(x, y) {
   if (wy < NET_Y + 0.8) return null;
   return { x: clamp(wx, -(HW + 0.8), HW + 0.8), y: clamp(wy, NET_Y + 1.6, L + 0.8) };
 }
+function defaultAim() {                                   // the open court, deep
+  const open = cpu.x > 0.4 ? -1 : cpu.x < -0.4 ? 1 : (player.x > 0 ? -1 : 1);
+  return { x: open * 2.6, y: L - 2.6 };
+}
 function chargeAim(c) {
   if (!c) return null;
   if (c.x == null) {
     const k = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
     return k ? { x: k * (HW - 0.4), y: L - 2.5 } : null;
   }
-  return aimFromTouch(c.x, c.y);
+  return { x: c.ax, y: c.ay };
 }
-function startCharge(id, x, y) { player.charge = { id, t0: performance.now(), x: x == null ? null : x, y: y == null ? null : y }; }
+// Slide the swing thumb to move the target like a trackpad, so your thumb never covers it.
+// Sliding keeps the power full; holding still before you lift softens the shot.
+function nudgeAim(c, x, y) {
+  const dxp = (x - c.lx) / SCALE, dyp = (y - c.ly) / SCALE;
+  c.lx = x; c.ly = y;
+  const d = c.ay + CAM_Y;
+  c.ax = clamp(c.ax + dxp * d / F * 0.95, -(HW + 0.3), HW + 0.3);                  // sideways: about a court width per thumb sweep
+  c.ay = clamp(c.ay - dyp * d * d / (CAM_H * F) * 0.45, NET_Y + 1.6, L + 0.3);      // depth: gentler
+  if (Math.hypot(dxp, dyp) > 0.6) c.t0 = performance.now();
+}
+function startCharge(id, x, y) {
+  const a = x == null ? null : (aimFromTouch(x, y) || defaultAim());
+  player.charge = { id, t0: performance.now(), x: x == null ? null : x, y: y == null ? null : y,
+                    lx: x, ly: y, ax: a ? a.x : 0, ay: a ? a.y : L - 2.6 };
+}
 function releaseCharge(id) {
   const c = player.charge;
   if (!c || c.id !== id) return;
@@ -1271,7 +1289,7 @@ document.addEventListener('pointerdown', e => {
   }
 }, { passive: false });
 window.addEventListener('pointermove', e => {
-  if (player.charge && player.charge.id === e.pointerId) { player.charge.x = e.clientX; player.charge.y = e.clientY; }   // slide to adjust your aim
+  if (player.charge && player.charge.id === e.pointerId && !(drag && drag.id === e.pointerId)) nudgeAim(player.charge, e.clientX, e.clientY);   // slide to aim
   if (!drag || e.pointerId !== drag.id) return;
   drag.cx = e.clientX; drag.cy = e.clientY;
   drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.ox, e.clientY - drag.oy));
@@ -2279,7 +2297,7 @@ const LOSS_LINES = ["Shake it off. Watch where they hit, then try again.", "Clos
   "Every champion lost a hundred times first. Go again.", "Coins still count. Spend them on upgrades if you're stuck."];
 const TIPS = [
   "Three Perfect shots in a row fill your Focus meter. The next swing is a Power shot.",
-  "Tap the spot on their side where you want the ball to land. Corners make them run, and running makes them miss.",
+  "Hold your swing thumb and slide it: the target on their side follows. Corners make them run, and running makes them miss.",
   "Swing early to pull the ball cross-court. Swing late to send it down the line.",
   "A quick tap hits hard. Hold a little longer for a softer, safer ball.",
   "Hold until the power bar flashes for a drop shot. Great against players who stay back.",
