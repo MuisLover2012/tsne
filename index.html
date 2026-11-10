@@ -434,7 +434,8 @@ body {
       <dt>Move</dt><dd>Keep one finger on the screen and drag to move.</dd>
       <dt>Swing</dt><dd>Tap with another finger as the ball arrives. The racket swings when you lift it.</dd>
       <dt>Power</dt><dd>A quick tap hits hard and deep. Hold a little longer for a softer shot, or hold until the bar flashes for a drop shot.</dd>
-      <dt>Timing</dt><dd>Swing early to pull the ball cross-court, late to send it down the line.</dd>
+      <dt>Aim</dt><dd>Tap where you want the ball to go: the left of the screen aims left, the right aims right. A target shows while you hold.</dd>
+      <dt>Timing</dt><dd>Perfect timing lands on your target. Early or late swings drift off it.</dd>
       <dt>Serve</dt><dd>Tap to toss, then tap again at the top. Two faults lose the point.</dd>
     </dl>
     </details>
@@ -1121,7 +1122,7 @@ function setHint() {
   if (S.mode === 'play' && !S.paused) {
     if (S.state === 'serve' && M.server === 0) h = S.toss < 0 ? (S.second ? 'Second serve: tap to toss' : 'Tap to toss') : 'Tap again at the top';
     else if (S.state === 'serve' && M.server === 1 && S.tips < 3) h = 'Get ready to return';
-    else if (S.state === 'rally' && S.tips < 4) h = 'Tap with another finger to swing';
+    else if (S.state === 'rally' && S.tips < 4) h = 'Tap where you want the ball to go';
   }
   const el = $('hint');
   if (el.textContent !== h) el.textContent = h;
@@ -1218,16 +1219,25 @@ function serveTap() {
   else if (S.toss > 0.12) playerServe();
   setHint();
 }
-function startCharge(id) { player.charge = { id, t0: performance.now() }; }
+// Aim: where your swing finger touches the screen picks the direction. Left of the screen aims at the
+// left sideline, the middle aims straight, the right aims at the right sideline. Keyboard: hold an arrow.
+function aimFromX(x) { return clamp(((x - OFFX) / (VW * SCALE) - 0.5) * 2.4, -1, 1); }
+function chargeAim(c) {
+  if (!c) return null;
+  if (c.x == null) return (keys.ArrowRight ? 0.85 : 0) - (keys.ArrowLeft ? 0.85 : 0);
+  return aimFromX(c.x);
+}
+function startCharge(id, x) { player.charge = { id, t0: performance.now(), x: x == null ? null : x }; }
 function releaseCharge(id) {
   const c = player.charge;
   if (!c || c.id !== id) return;
   player.charge = null;
-  startSwing((performance.now() - c.t0) / 1000);
+  startSwing((performance.now() - c.t0) / 1000, chargeAim(c));
 }
-function startSwing(hold) {
+function startSwing(hold, aim) {
   if (S.mode !== 'play' || S.paused || S.state !== 'rally' || player.cool > 0) return false;
   player.swingT = 0; player.cool = SWING_CD; player.hold = hold; player.connected = false;
+  player.aimX = aim == null ? null : aim;
   player.swing = 1;
   player.side = (ball.lastHitter === 'c' ? ball.x : player.x + 1) >= player.x ? 1 : -1;
   netSwing();
@@ -1244,14 +1254,15 @@ document.addEventListener('pointerdown', e => {
   e.preventDefault();
   initAudio();
   if (serveLocked()) { serveTap(); if (!drag) drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, cx: e.clientX, cy: e.clientY, ox: e.clientX, oy: e.clientY, px: player.tx, py: player.ty, moved: 0, served: true }; return; }
-  if (drag && drag.id !== e.pointerId) { startCharge(e.pointerId); return; }   // second finger: swing
+  if (drag && drag.id !== e.pointerId) { startCharge(e.pointerId, e.clientX); return; }   // second finger: swing
   if (!drag) {
     drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, cx: e.clientX, cy: e.clientY, ox: e.clientX, oy: e.clientY,
              px: player.tx, py: player.ty, moved: 0, served: false };
-    startCharge(e.pointerId);            // might be a one-finger tap; cancelled if it starts to move
+    startCharge(e.pointerId, e.clientX);  // might be a one-finger tap; cancelled if it starts to move
   }
 }, { passive: false });
 window.addEventListener('pointermove', e => {
+  if (player.charge && player.charge.id === e.pointerId) player.charge.x = e.clientX;   // slide to adjust your aim
   if (!drag || e.pointerId !== drag.id) return;
   drag.cx = e.clientX; drag.cy = e.clientY;
   drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.ox, e.clientY - drag.oy));
@@ -1390,8 +1401,13 @@ function playerHit(dx, e) {
   } else {
     tag = q > 0.6 ? (power > 0.75 ? 'Strong' : 'Perfect') : e > 0 ? 'Late' : 'Early';
     // good timing places the ball into the open court; early pulls it across your body, late pushes it the other way
-    const open = cpu.x > 0.4 ? -1 : cpu.x < -0.4 ? 1 : (Math.random() < 0.5 ? -1 : 1);
-    tx = open * (0.4 + 2.8 * q * q) + side * e * 2.0 + rand(-1, 1) * (0.3 + 0.9 * (1 - q));
+    if (player.aimX != null) {
+      // you chose the direction; timing decides how close you get to it
+      tx = player.aimX * (HW - 0.35) + side * e * 0.9 + rand(-1, 1) * (0.2 + 0.9 * (1 - q));
+    } else {
+      const open = cpu.x > 0.4 ? -1 : cpu.x < -0.4 ? 1 : (Math.random() < 0.5 ? -1 : 1);
+      tx = open * (0.4 + 2.8 * q * q) + side * e * 2.0 + rand(-1, 1) * (0.3 + 0.9 * (1 - q));
+    }
     if (hold >= TOUCH_HOLD) {
       ty = NET_Y + rand(1.6, 3.2); pace = 9; tx *= 0.7; clear = 0.15; if (q > 0.6) tag = 'Drop shot';
     } else if (hold >= 0.32 && cpu.y < NET_Y + 5.5 && player.y < NET_Y - 4.5) {     // they're at the net: float it over them
@@ -1612,7 +1628,7 @@ function update(dt) {
         else { cpu.tx = cpu.plan.x; cpu.ty = cpu.plan.y; }
       }
     } else if (ball.lastHitter === 'c') {
-      cpu.tx = clamp(-ball.land.x * 0.15, -1.2, 1.2); cpu.ty = cpu.home || L + 0.8;
+      cpu.tx = clamp(-(ball.land ? ball.land.x : 0) * 0.15, -1.2, 1.2); cpu.ty = cpu.home || L + 0.8;
     }
   }
   if (!(S.state === 'serve' && M.server === 0)) moveToward(player, PS.speed, dt);
@@ -1943,6 +1959,15 @@ function drawMarkers() {
     const [mx, my] = pp(ball.mark.x, ball.mark.y, 0);
     if (ball.mark.t > 0.2 || Math.floor(S.clock * 10) % 2) pRing(mx, my, 3, 1.5, PAL.w, false);
   }
+  // aim marker: while you hold your swing finger, a target shows where the shot is headed
+  if (player.charge && S.state === 'rally' && !ball.dead && ball.lastHitter === 'c') {
+    const aim = chargeAim(player.charge), hold = (performance.now() - player.charge.t0) / 1000, pw = powerFor(hold);
+    const ty = hold >= TOUCH_HOLD ? NET_Y + 2.4 : L - 2.6 - (1 - pw) * 4 + pw * 0.4;
+    const [ax, ay] = pp(aim * (HW - 0.35), ty, 0);
+    const col = hold >= TOUCH_HOLD ? PAL.c : PAL.y;
+    pRing(ax, ay + 1, 6, 2.5, PAL.k, false); pRing(ax, ay, 6, 2.5, col, false);   // outlined target ring
+    rect(ax - 1, ay, 3, 1, col); rect(ax, ay - 1, 1, 3, col);
+  }
   // timing cue: a ring at your feet turns lime when it is time to swing (Easy and Club)
   if ((D().marker || ASSIST) && S.state === 'rally' && !ball.dead && ball.lastHitter === 'c' && ball.vy < 0 && !(ball.isServe && ball.bounces === 0)) {
     const tc = (ball.y - (player.y + 0.3)) / -ball.vy;
@@ -2241,7 +2266,7 @@ const LOSS_LINES = ["Shake it off. Watch where they hit, then try again.", "Clos
   "Every champion lost a hundred times first. Go again.", "Coins still count. Spend them on upgrades if you're stuck."];
 const TIPS = [
   "Three Perfect shots in a row fill your Focus meter. The next swing is a Power shot.",
-  "Perfect timing sends the ball into the open court. Make them run and they'll start missing.",
+  "Tap where you want the ball to go. Left of the screen aims left, right aims right. Make them run and they'll start missing.",
   "Swing early to pull the ball cross-court. Swing late to send it down the line.",
   "A quick tap hits hard. Hold a little longer for a softer, safer ball.",
   "Hold until the power bar flashes for a drop shot. Great against players who stay back.",
