@@ -159,6 +159,18 @@ body {
 .fp.on { background: var(--ball); border-color: var(--ball); }
 #focus.full .fp { background: #ef7d57; border-color: #ffcd75; }
 #focus.full .flab { color: #ffcd75; }
+.invitebar {
+  display: flex; align-items: center; gap: 10px; width: 100%; cursor: pointer; text-align: left;
+  font-family: var(--display); font-size: 16px; font-weight: 600; color: var(--ink);
+  background: var(--ball); border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); padding: 12px 14px;
+}
+.invitebar[hidden] { display: none; }
+.invitebar #inviteText { flex: 1; }
+.ib-dot { width: 10px; height: 10px; background: var(--ink); animation: spPulse .5s steps(2) infinite; flex: none; }
+.ib-go { font-family: var(--label); font-size: 12px; text-transform: uppercase; }
+#invitePanel { display: flex; flex-direction: column; gap: 8px; }
+#invitePanel[hidden] { display: none; }
+.mcode { font-family: var(--label); font-size: 34px; letter-spacing: 8px; color: var(--ball); text-transform: uppercase; }
 #oppSp {
   position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 68px);
   display: flex; align-items: center; gap: 3px; pointer-events: none;
@@ -430,6 +442,7 @@ body {
       <h1>Grass Court <span>Rally</span></h1>
       <p class="lede">From the park courts to the Meadow Crown. Or jump into a quick match, or challenge a friend.</p>
     </div>
+    <button type="button" class="invitebar" id="inviteBar" hidden><span class="ib-dot"></span><span id="inviteText">A friend is waiting for you</span><span class="ib-go">Join ▸</span></button>
     <div class="actions">
       <button type="button" class="btn primary" id="careerBtn">Career</button>
     </div>
@@ -473,6 +486,12 @@ body {
   <div class="card">
     <div class="head"><div class="eyebrow">Play a friend</div><h2>Online match</h2></div>
     <p class="lede" id="onlineStatus">Connecting…</p>
+    <div id="invitePanel" hidden>
+      <div class="seg-label">Match code</div>
+      <div class="mcode" id="matchCode">----</div>
+      <button type="button" class="btn primary" id="inviteBtn">Send invite link</button>
+      <p class="fine" id="inviteNote">Send the link to your friend. When they open it, a Join button is waiting for them on the start screen.</p>
+    </div>
     <div class="actions" id="lobbyList"></div>
     <div id="venuePick">
       <div class="seg-label" id="venLabel">Court for your match</div>
@@ -488,7 +507,7 @@ body {
       <button type="button" class="btn primary" id="hostBtn">Host a match</button>
       <button type="button" class="btn" id="onlineBack">Back</button>
     </div>
-    <p class="fine">Your friend needs a Claude account and access to this game. Share it with them from the Share menu. When they open the link, they tap Play a friend and join your match.</p>
+    <p class="fine">First time? Your friend needs a free Claude account, and the game must be shared with them: use the Share menu at the top of this page and add them. They open the link signed in, then tap Join.</p>
   </div>
 </div>
 
@@ -2229,7 +2248,7 @@ function render() {
 }
 
 // ---------- Screens ----------
-function show(id, on) { $(id).hidden = !on; }
+function show(id, on) { $(id).hidden = !on; if (id === 'menu' && on) { try { renderInviteBar(); } catch (e) {} } }
 function requestWake() {
   try { navigator.wakeLock && navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
 }
@@ -3776,6 +3795,23 @@ async function initNet() {
   } catch (e) { NET.room = null; }
   renderLobby();
 }
+const GAME_URL = 'https://claude.ai/artifact/CAiPA1KXiCZwCL5u6g3C4W';
+async function sendInvite() {
+  const text = `Play tennis with me in Grass Court Rally! Open the link and tap Join (match ${NET.code.toUpperCase()}).`;
+  const note = $('inviteNote');
+  try { if (navigator.share) { await navigator.share({ title: 'Grass Court Rally', text, url: GAME_URL }); note.textContent = 'Invite sent. Keep this screen open until they join.'; return; } }
+  catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(text + ' ' + GAME_URL); note.textContent = 'Link copied. Paste it into a message to your friend, then keep this screen open.'; }
+  catch (e) { note.textContent = 'Send your friend this link: ' + GAME_URL; }
+}
+function renderInviteBar() {
+  const bar = $('inviteBar'), hosts = NET.game ? [] : lobbyHosts().filter(p => !p.isMe);
+  bar.hidden = !hosts.length || S.mode === 'play';
+  if (bar.hidden) return;
+  const h = hosts[0], n = NET.names[h.by];
+  $('inviteText').textContent = (n ? n.split(' ')[0] : 'A friend') + ' is waiting for a match';
+  bar.onclick = () => { show('menu', false); show('online', true); joinMatch(h.presence.host); };
+}
 function openOnline() { show('menu', false); show('end', false); show('online', true); renderLobby(); }
 function lobbyHosts() {
   if (!NET.room) return [];
@@ -3783,21 +3819,24 @@ function lobbyHosts() {
 }
 function renderLobby() {
   const status = $('onlineStatus'), list = $('lobbyList'), host = $('hostBtn');
+  renderInviteBar();
+  $('invitePanel').hidden = !(NET.game && NET.role === 'host');
+  if (NET.code) $('matchCode').textContent = NET.code;
   if (!NET.room) {
-    status.textContent = 'Online play works when this game is opened from its claude.ai link while you are signed in.';
+    status.textContent = "Online play needs you signed in to claude.ai, with the game opened from its claude.ai link. Signed-out and public-link visitors can't connect.";
     host.hidden = true; list.replaceChildren(); return;
   }
   host.hidden = !!NET.game;
   $('venuePick').hidden = !!NET.game;
   const hosts = NET.game ? [] : lobbyHosts();
-  if (NET.game && NET.role === 'host') status.textContent = 'Waiting for your friend to join. Keep this screen open.';
+  if (NET.game && NET.role === 'host') status.textContent = 'Your match is open. Invite your friend, then keep this screen open until they join.';
   else if (NET.game) status.textContent = 'Joining…';
   else if (hosts.length) status.textContent = 'Tap a match to join it, or host your own.';
   else status.textContent = 'Nobody is waiting yet. Host a match, then ask your friend to open the game and join.';
   list.replaceChildren(...hosts.map(p => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'btn'; b.dataset.code = p.presence.host;
-    b.textContent = p.isMe ? 'Join your other tab' : 'Join ' + (NET.names[p.by] || 'a waiting player');
+    b.textContent = p.isMe ? 'Join your other tab' : 'Join ' + (NET.names[p.by] || 'a waiting player') + ' · ' + p.presence.host.toUpperCase();
     b.addEventListener('click', () => joinMatch(p.presence.host));
     return b;
   }));
@@ -3969,6 +4008,7 @@ document.querySelectorAll('#venuePick button').forEach(b => b.addEventListener('
   setVenue(NET.venue);
 }));
 $('hostBtn').addEventListener('click', hostMatch);
+$('inviteBtn').addEventListener('click', sendInvite);
 $('onlineBack').addEventListener('click', () => { leaveOnline(); show('online', false); show('menu', true); });
 
 // ---------- Boot ----------

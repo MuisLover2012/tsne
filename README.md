@@ -21,9 +21,13 @@ The art follows the rules in [`art/pixel-anchor.md`](art/pixel-anchor.md): the S
 
 ## Playing a friend
 
-Tap **Play a friend**, pick a court, then tap **Host a match**. When your friend opens the game and taps **Play a friend**, your match appears in their list and they tap **Join**. Each of you sees yourself at the bottom of the court.
+1. Tap **Play a friend**, pick a court, then tap **Host a match**. You get a four-letter match code.
+2. Tap **Send invite link** to send the game's link through your phone's share sheet (or copy it), then keep that screen open.
+3. When your friend opens the link, a **"… is waiting for a match · Join"** bar is on their start screen. One tap and the match starts.
 
-Online play uses the claude.ai artifact "room" feature, so it only works in the published claude.ai version of the game. Both players need to be signed in to Claude, and the game has to be shared with your friend. Opened as a plain `index.html`, the game still works but has no online play.
+Each of you sees yourself at the bottom of the court.
+
+Online play uses the claude.ai artifact "room" feature, so it only works in the published claude.ai version of the game. Both players need to be signed in to Claude, and the game has to be shared with your friend: add them from the artifact's **Share** menu. Signed-out visitors and public links can't connect to online play. Opened as a plain `index.html`, the game still works but has no online play.
 
 How it stays fair over the network: each phone sends its own position, swings, toss, shots and rulings. The phone the ball is heading toward rules on that ball (hit, out, net, winner or fault), so your swing timing never waits on the connection.
 
