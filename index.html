@@ -187,6 +187,7 @@ body {
 .lede { margin: 0; font-size: 16px; color: var(--panel-dim); line-height: 1.35; }
 
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.seg5 { grid-template-columns: repeat(3, 1fr); }
 .seg button {
   font-family: var(--label); font-size: 14px; font-weight: 700; text-transform: uppercase;
   padding: 10px 4px; cursor: pointer;
@@ -417,6 +418,16 @@ body {
     <div class="head"><div class="eyebrow">Play a friend</div><h2>Online match</h2></div>
     <p class="lede" id="onlineStatus">Connecting…</p>
     <div class="actions" id="lobbyList"></div>
+    <div id="venuePick">
+      <div class="seg-label" id="venLabel">Court for your match</div>
+      <div class="seg seg5" role="group" aria-labelledby="venLabel">
+        <button type="button" data-ven="grass" aria-pressed="true">Grass</button>
+        <button type="button" data-ven="clay" aria-pressed="false">Clay</button>
+        <button type="button" data-ven="park" aria-pressed="false">Park</button>
+        <button type="button" data-ven="indoor" aria-pressed="false">Indoor</button>
+        <button type="button" data-ven="centre" aria-pressed="false">Centre</button>
+      </div>
+    </div>
     <div class="actions">
       <button type="button" class="btn primary" id="hostBtn">Host a match</button>
       <button type="button" class="btn" id="onlineBack">Back</button>
@@ -2750,6 +2761,7 @@ function startDaily() {
 }
 
 $('careerBtn').addEventListener('click', () => { initAudio(); openCareer(); });
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('button')) tone(880, 0.03, 0.03, 'square'); }, true);
 $('careerBack').addEventListener('click', () => { show('career', false); S.mode = 'menu'; show('menu', true); });
 document.querySelectorAll('#career .tab').forEach(b => b.addEventListener('click', () => { HUB_TAB = b.dataset.tab; renderHub(); }));
 $('cRank').addEventListener('click', () => { HUB_TAB = 'ranks'; renderHub(); });
@@ -2796,6 +2808,7 @@ function renderLobby() {
     host.hidden = true; list.replaceChildren(); return;
   }
   host.hidden = !!NET.game;
+  $('venuePick').hidden = !!NET.game;
   const hosts = NET.game ? [] : lobbyHosts();
   if (NET.game && NET.role === 'host') status.textContent = 'Waiting for your friend to join. Keep this screen open.';
   else if (NET.game) status.textContent = 'Joining…';
@@ -2857,7 +2870,7 @@ function startOnline(ep, iStarted) {
   const opp = oppPeer();
   NET.oppSw = opp && opp.presence ? opp.presence.sw : null;
   const myKit = (CAREER && CAREER.kit) || {};
-  netSend({ ...(iStarted ? { go: ep, ep, shot: null, pt: null } : { ep, shot: null, pt: null }),
+  netSend({ ...(iStarted ? { go: ep, ep, shot: null, pt: null, ven: NET.venue || 'grass' } : { ep, shot: null, pt: null }),
             kit: { cap: kitItem('cap', myKit.cap).id, shirt: kitItem('shirt', myKit.shirt).id, racket: kitItem('racket', myKit.racket).id } });
   if (NET.room) NET.room.presence({ host: null }).catch(() => {});
   Object.assign(M, { games: [0, 0], pts: [0, 0], server: iStarted ? 0 : 1, over: false, winner: -1 });
@@ -2865,7 +2878,7 @@ function startOnline(ep, iStarted) {
   ['menu', 'end', 'pause', 'online'].forEach(id => show(id, false));
   $('nameC').textContent = 'Them';
   setOpponent(DIFFS[1]); PS = statsFor(MID_STATS); RULES = { toWin: 4, by: 2 }; S.career = null; MS = null; S.mod = {};
-  if (typeof setVenue === 'function') setVenue('grass');
+  setVenue(iStarted ? (NET.venue || 'grass') : (NET.pendingVen || 'grass'));
   hideCall(); setupPoint(); requestWake();
 }
 function leaveOnline() {
@@ -2905,7 +2918,7 @@ function netPoint(kind, winner, reason) {
                   over: M.over, mw: M.winner === 0 ? 'me' : M.winner === 1 ? 'you' : null } });
 }
 function handleOpp(pr) {
-  if (num(pr.go) && pr.go > NET.ep && NET.game) { startOnline(pr.go, false); return; }
+  if (num(pr.go) && pr.go > NET.ep && NET.game) { NET.pendingVen = VENUES[pr.ven] ? pr.ven : 'grass'; startOnline(pr.go, false); return; }
   if (!S.online || pr.ep !== NET.ep) return;
   if (pr.kit && typeof pr.kit === 'object') {        // show your friend in their own colours
     const key = [pr.kit.cap, pr.kit.shirt, pr.kit.racket].join('/');
@@ -2935,6 +2948,7 @@ function applyShot(sh) {
   ball.land = predictLand();
   ball.landOut = !isIn(ball.land.x, ball.land.y, 'p');
   S.state = 'rally'; S.toss = -1;
+  S.rally = (S.rally || 0) + 1; renderRally();
   sfx.hit(false);
   setHint();
 }
@@ -2968,6 +2982,12 @@ function applyPoint(pt) {
   renderBoard(); setHint();
 }
 $('friendBtn').addEventListener('click', openOnline);
+NET.venue = 'grass';
+document.querySelectorAll('#venuePick button').forEach(b => b.addEventListener('click', () => {
+  NET.venue = b.dataset.ven;
+  document.querySelectorAll('#venuePick button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  setVenue(NET.venue);
+}));
 $('hostBtn').addEventListener('click', hostMatch);
 $('onlineBack').addEventListener('click', () => { leaveOnline(); show('online', false); show('menu', true); });
 
