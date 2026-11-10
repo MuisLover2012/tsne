@@ -125,6 +125,16 @@ body {
 }
 #bubble::after { content: ""; position: absolute; left: 50%; bottom: -9px; margin-left: -4px; border: 6px solid transparent; border-top-color: var(--ink); border-bottom: 0; }
 #bubble.show { opacity: 1; }
+#chBtn { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 120px); z-index: 4; }
+#chBtn[hidden] { display: none; }
+#review { position: fixed; inset: 0; z-index: 7; display: grid; place-items: center; background: rgb(26 28 44 / .6); pointer-events: none;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+#review[hidden] { display: none; }
+.rcard { background: var(--panel); border: 4px solid var(--ink); box-shadow: 6px 6px 0 var(--ink); padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; width: min(320px, 100%); }
+#reviewCv { width: 100%; max-width: 288px; aspect-ratio: 3 / 2; image-rendering: pixelated; border: 3px solid var(--ink); }
+#reviewVerdict { font-family: var(--display); font-weight: 700; font-size: 48px; line-height: 1; text-shadow: 3px 3px 0 var(--ink); color: var(--chalk); }
+#reviewVerdict.good { color: var(--ball); }
+#reviewSub { font-size: 15px; color: var(--panel-dim); text-align: center; }
 #rally {
   position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(env(safe-area-inset-top, 0px) + 64px);
   font-family: var(--display); font-weight: 700; font-size: 22px; text-transform: uppercase; pointer-events: none;
@@ -363,6 +373,8 @@ body {
 
 <div id="tag" aria-hidden="true"></div>
 <div id="rally" aria-hidden="true"></div>
+<button type="button" id="chBtn" class="btn primary" hidden>Challenge</button>
+<div id="review" hidden><div class="rcard"><div class="eyebrow">Line review</div><canvas id="reviewCv" width="96" height="64"></canvas><div id="reviewVerdict">IN</div><div id="reviewSub"></div></div></div>
 <div id="bubble" aria-hidden="true"></div>
 <div id="toast" hidden role="status"><div class="tstar">★</div><div><div class="tlab">Trophy unlocked</div><div class="tname" id="toastName"></div><div class="tdesc" id="toastDesc"></div></div></div>
 <div id="focus" hidden aria-label="Focus meter"><span class="flab">Focus</span><span class="fp"></span><span class="fp"></span><span class="fp"></span></div>
@@ -1338,7 +1350,13 @@ function onBounce() {
       if (!inServiceBox(ball.x, ball.y, hitter)) { ball.mark = { x: ball.x, y: ball.y, t: 1.2 }; fault(); return; }
     } else {
       if (side === hitter) { endPoint(recv, 'Net'); return; }
-      if (!isIn(ball.x, ball.y, side)) { ball.mark = { x: ball.x, y: ball.y, t: 1.6 }; endPoint(recv, 'Out'); return; }
+      const m = lineMargin(ball.x, ball.y, side), close = Math.abs(m) < 0.12;
+      const calledOut = m < 0 || (close && challengesOn() && Math.random() < 0.3);   // line judges miss close ones
+      if (calledOut) {
+        ball.mark = { x: ball.x, y: ball.y, t: 3 };
+        if (close && challengesOn()) { openChallenge(hitter, m >= 0, ball.x, ball.y, side); return; }
+        endPoint(recv, 'Out'); return;
+      }
     }
     ball.bounces = 1;
     ball.mark = { x: ball.x, y: ball.y, t: 0.7 };
@@ -1463,11 +1481,77 @@ function update(dt) {
   if (ball.mark) { ball.mark.t -= dt; if (ball.mark.t <= 0) ball.mark = null; }
   if (S.cheer > 0) S.cheer -= dt;
   if (player.cheer > 0) player.cheer -= dt;
+  stepChallenge();
   if (cpu.cheer > 0) cpu.cheer -= dt;
   if (S.state !== 'serve') {
     ball.trail.push(pp(ball.x, ball.y, ball.z));
     if (ball.trail.length > (ball.power ? 9 : 4)) ball.trail.shift();
   } else ball.trail.length = 0;
+}
+
+// ---------- Line calls and challenges ----------
+// Close balls can be called out by mistake. The hitter may challenge; a line review shows the truth.
+let CH = null;
+const challengesOn = () => !S.online && !S.practice && S.mode === 'play';
+function lineMargin(x, y, side) {
+  const sideM = HW + 0.05 - Math.abs(x);
+  const baseM = side === 'c' ? L + 0.05 - y : y + 0.05;
+  return Math.min(sideM, baseM);
+}
+function openChallenge(hitter, truthIn, x, y, side) {
+  ball.dead = true; S.state = 'over'; S.timer = 99;
+  CH = { hitter, truthIn, x, y, side, t: S.clock, done: false };
+  if (hitter === 'p' && (S.chLeft ?? 3) > 0) {
+    showCall('Out', 'Close call. Challenge?', false);
+    const b = $('chBtn'); b.textContent = `Challenge (${S.chLeft ?? 3} left)`; b.hidden = false;
+  } else if (hitter === 'c') {
+    showCall('Out', '', true);
+    const wants = Math.random() < (truthIn ? 0.75 : 0.15);
+    CH.cpuAt = wants ? S.clock + 1.1 : null;
+    if (wants) setTimeout(() => { if (CH && !CH.done) { showCall('Challenge', ($('nameC').textContent || 'CPU') + ' challenges the call', false); } }, 1000);
+  } else showCall('Out', 'No challenges left', false);
+}
+function stepChallenge() {
+  if (!CH || CH.done) return;
+  if (CH.cpuAt && S.clock >= CH.cpuAt) { CH.cpuAt = null; review(); return; }
+  if (CH.hitter === 'p' && !$('chBtn').hidden && S.clock - CH.t > 3.2) { $('chBtn').hidden = true; settle(false); return; }
+  if (!CH.cpuAt && $('chBtn').hidden && !CH.reviewing && S.clock - CH.t > 1.4) settle(false);
+}
+function review() {
+  if (!CH || CH.done || CH.reviewing) return;
+  CH.reviewing = true; $('chBtn').hidden = true; hideCall();
+  drawReview(CH);
+  show('review', true);
+  tone(330, 0.1, 0.05); tone(440, 0.1, 0.05, 'square', 0.6); tone(CH.truthIn ? 880 : 220, 0.25, 0.07, 'square', 1.2);
+  setTimeout(() => { show('review', false); settle(true); }, 2300);
+}
+function settle(challenged) {
+  if (!CH || CH.done) return;
+  const c = CH; c.done = true; CH = null;
+  const recv = c.hitter === 'p' ? 'c' : 'p';
+  if (challenged && c.hitter === 'p' && !c.truthIn) S.chLeft = Math.max(0, (S.chLeft ?? 3) - 1);   // lost challenges are used up
+  ball.dead = false;
+  if (challenged && c.truthIn) endPoint(c.hitter, 'Overruled');
+  else endPoint(recv, 'Out');
+}
+function drawReview(c) {
+  const cv = $('reviewCv'), W2 = 96, H2 = 64; cv.width = W2; cv.height = H2;
+  const x = cv.getContext('2d');
+  const base = VEN.court === 'clay' ? PAL.o : VEN.court === 'grass' ? PAL.g : PAL.b;
+  x.fillStyle = base; x.fillRect(0, 0, W2, H2);
+  // the line nearest the mark, to scale: 0.05 m line centred on the court edge, 0.033 m ball radius, 200 px per metre
+  const k = 200, sideM = HW - Math.abs(c.x), baseM = c.side === 'c' ? L - c.y : c.y;
+  const useSide = sideM < baseM;
+  const beyond = useSide ? Math.abs(c.x) - (HW + 0.017) : (c.side === 'c' ? c.y - (L + 0.017) : -c.y - 0.017);   // centre past the outer edge
+  const lineW = Math.round(0.05 * k), lx = Math.round(W2 / 2);
+  x.fillStyle = PAL.w; x.fillRect(lx - lineW, 0, lineW, H2);
+  const r = Math.max(3, Math.round(0.033 * k)), bx = Math.round(lx + beyond * k), by = H2 / 2;
+  x.fillStyle = PAL.l;
+  for (let jj = -r; jj <= r; jj++) { const w = Math.round(Math.sqrt(r * r - jj * jj)); x.fillRect(bx - w, by + jj, w * 2 + 1, 1); }
+  x.fillStyle = PAL.g; x.fillRect(bx - 1, by - 1, 3, 3);
+  $('reviewVerdict').textContent = c.truthIn ? 'IN' : 'OUT';
+  $('reviewVerdict').className = c.truthIn ? 'good' : '';
+  $('reviewSub').textContent = c.truthIn ? 'The ball touched the line. Call overruled.' : 'Clean miss. The call stands.';
 }
 
 // ---------- Juice: particles, focus, rally ----------
@@ -1761,7 +1845,7 @@ function startMatch() {
   Object.assign(M, { games: [0, 0], pts: [0, 0], server: 0, over: false, winner: -1 });
   S.mode = 'play'; S.paused = false; S.second = false; S.tips = 0;
   show('menu', false); show('end', false); show('pause', false);
-  hideCall(); player.focus = 0;
+  hideCall(); player.focus = 0; S.chLeft = 3; CH = null;
   setupPoint();
   requestWake();
 }
@@ -1804,6 +1888,7 @@ $('assistBtn').addEventListener('click', () => {
   if (S.mode === 'play' && !S.online) PS = S.career || S.practice ? careerStats() : withAssist(statsFor(MID_STATS));
 });
 renderAssist();
+$('chBtn').addEventListener('click', e => { e.stopPropagation(); if (CH && !CH.done && CH.hitter === 'p') review(); });
 $('soundBtn').addEventListener('click', () => {
   S.sound = !S.sound; $('soundBtn').textContent = `Sound: ${S.sound ? 'on' : 'off'}`;
   try { localStorage.setItem('gcr-sound', S.sound ? '1' : '0'); } catch (e) {}
@@ -2352,7 +2437,7 @@ function startCareerMatch(id) {
 function beginCareerMatch() {
   initAudio();
   player.focus = hasPerk('marla') ? 1 : 0;
-  MS = freshMS();
+  MS = freshMS(); S.chLeft = 3; CH = null;
   Object.assign(M, { games: [0, 0], pts: [0, 0], server: 0, over: false, winner: -1 });
   S.mode = 'play'; S.paused = false; S.second = false; S.tips = Math.min(S.tips, 2);
   hideCall(); setupPoint(); requestWake(); updateGoalChip();

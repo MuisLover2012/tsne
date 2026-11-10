@@ -46,6 +46,7 @@ The loop:
 - **Coins:** every match pays coins, even a loss. Spend them on **Upgrades** (speed, reach, power, touch and serve) or in the **Shop** (caps, shirts and rackets).
 - **World ranking:** wins earn ranking points, from #900 up to #1.
 - **Focus:** three Perfect shots in a row fill the Focus meter, and your next swing becomes a **Power shot**.
+- **Line calls and challenges:** line judges sometimes call a close ball out by mistake. Tap **Challenge** (three per match) to see a pixel line review; if the ball touched the line, the call is overruled. Computer opponents challenge too.
 - **Boss perks:** every boss teaches you something permanent, like starting matches with a Focus pip or hitting harder Power shots.
 - **Swing assist:** a pause-menu option that widens the timing window and keeps the training rings on.
 - **Practice court:** Bea feeds you balls and teaches each skill. There's a coin bonus the first time.
