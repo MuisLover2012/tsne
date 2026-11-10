@@ -280,6 +280,8 @@ body {
 .tab { font-family: var(--label); font-size: 12px; text-transform: uppercase; padding: 8px 4px; cursor: pointer;
   border: 3px solid var(--ink); background: var(--panel); color: var(--panel-dim); }
 .tab[aria-selected="true"] { background: var(--panel-ink); color: var(--ink); }
+.tab { position: relative; }
+.tab.badge::after { content: ""; position: absolute; top: -5px; right: -5px; width: 10px; height: 10px; background: var(--ball); border: 2px solid var(--ink); }
 #hubBody { display: flex; flex-direction: column; gap: 14px; }
 .tier { display: flex; flex-direction: column; gap: 8px; }
 .tier.locked { opacity: .6; }
@@ -908,6 +910,8 @@ const sfx = {
     else tone(c === 'indoor' ? 240 : 200, 0.04, 0.09 * v, 'square');
   },
   net() { tone(90, 0.16, 0.12, 'sawtooth'); },
+  fanfare() { [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, i === 5 ? 0.45 : 0.12, 0.07, 'square', i * 0.13)); [131, 196, 262].forEach((f, i) => tone(f, 0.5, 0.05, 'triangle', i * 0.26)); },
+  sadtune() { [392, 330, 294, 262].forEach((f, i) => tone(f, i === 3 ? 0.5 : 0.18, 0.06, 'triangle', i * 0.2)); },
   win() { tone(660, 0.1, 0.08); tone(880, 0.1, 0.08, 'square', 0.1); tone(1320, 0.18, 0.08, 'square', 0.2); },
   lose() { tone(392, 0.12, 0.08); tone(262, 0.24, 0.08, 'square', 0.12); },
 };
@@ -2277,6 +2281,8 @@ function renderHub() {
   $('cCoins').textContent = CAREER.coins;
   $('cStars').textContent = totalStars();
   document.querySelectorAll('#career .tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === HUB_TAB)));
+  const canBuy = STAT_KEYS.some(k => CAREER.stats[k] < UPGRADE_COST.length && CAREER.coins >= UPGRADE_COST[CAREER.stats[k]]);
+  document.querySelector('#career .tab[data-tab="upgrades"]').classList.toggle('badge', canBuy);
   const body = $('hubBody');
   body.replaceChildren();
   if (HUB_TAB === 'tour') renderTour(body);
@@ -2441,6 +2447,7 @@ function beginCareerMatch() {
   Object.assign(M, { games: [0, 0], pts: [0, 0], server: 0, over: false, winner: -1 });
   S.mode = 'play'; S.paused = false; S.second = false; S.tips = Math.min(S.tips, 2);
   hideCall(); setupPoint(); requestWake(); updateGoalChip();
+  if (VEN.crowd >= 0.5) { roar(0.5); S.cheer = 1.2; }          // applause as you walk out
   if (S.mod.wind) setTimeout(() => showCall('Wind ' + (S.mod.wind > 0 ? '→' : '←'), 'The ball drifts ' + (S.mod.wind > 0 ? 'right' : 'left'), false), 300);
 }
 function careerResults() {
@@ -2488,7 +2495,8 @@ function careerResults() {
   $('rLongest').textContent = MS.rallyMax + ' shots';
   $('rPerfects').textContent = MS.perfects + (MS.powers ? ` · ${MS.powers} Power shot${MS.powers > 1 ? 's' : ''}` : '') + (MS.aces ? ` · ${MS.aces} ace${MS.aces > 1 ? 's' : ''}` : '');
   show('results', true);
-  if (won) { S.cheer = 4; sfx.win(); confetti(OPPS[c.id] && OPPS[c.id].boss ? 140 : 50); }
+  if (!won) sfx.sadtune();
+  if (won) { S.cheer = 4; sfx.fanfare(); roar(0.8); confetti(OPPS[c.id] && OPPS[c.id].boss ? 140 : 50); }
   $('rContinue').onclick = () => {
     show('results', false);
     const o = OPPS[c.id];
