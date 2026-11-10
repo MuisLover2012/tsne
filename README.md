@@ -7,13 +7,13 @@ Open `index.html` in a phone browser. It's a single file with no build step and 
 ## How to play
 
 - **Move:** keep one finger on the screen and drag to move.
-- **Swing:** tap with another finger as the ball arrives. The racket winds back while you hold and swings when you lift.
-- **Power:** sliding keeps the power full, so lift right after aiming to hit hard. Hold still a moment for a softer shot, or until the bar flashes for a drop shot. A bar above your player shows the power.
-- **Aim:** hold your swing thumb down and a target ring appears on your opponent's side, starting on the open court. Slide your thumb to move the ring, then lift to hit there. Your thumb can stay low on the screen, so it never covers the target. Touching their half directly starts the ring at that spot.
+- **Swing:** swipe your other thumb toward where the ball should go, just as the ball arrives. The swipe is the swing, so its timing is your timing.
+- **Aim:** the swipe's angle sets the direction. Straight up goes down the middle; about 45° left or right goes into that corner. A flashing ring shows where you aimed.
+- **Power:** a fast flick hits hard and deep, and a slow push hits soft and short. Swipe down for a drop shot. A plain tap hits a safe shot into the open court.
 - **Timing:** perfect timing lands on your target. Early or late swings drift off it, and swinging far off can mishit.
 - **Serve:** tap to toss, then tap again at the top of the toss. Two faults lose the point.
 
-On a computer, use the arrow keys to move, hold and release Space to swing (press it to serve), hold an arrow while swinging to aim at a corner and P to pause.
+On a computer, use the arrow keys to move, press Space to swing (and to serve), hold an arrow while swinging to aim at a corner, hold Space longer for a drop shot and P to pause.
 
 On Easy and Club, a ring at your feet turns lime when it's time to swing, and a cyan ring marks where the opponent's shot will land.
 

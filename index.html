@@ -432,9 +432,8 @@ body {
     <details class="howto"><summary>How to play</summary>
     <dl class="how">
       <dt>Move</dt><dd>Keep one finger on the screen and drag to move.</dd>
-      <dt>Swing</dt><dd>Tap with another finger as the ball arrives. The racket swings when you lift it.</dd>
-      <dt>Power</dt><dd>Lift right after aiming to hit hard. Hold still a moment for a softer shot, or until the bar flashes for a drop shot.</dd>
-      <dt>Aim</dt><dd>Hold your swing thumb down and a target appears on their side. Slide your thumb to move it, then lift to hit there.</dd>
+      <dt>Swing</dt><dd>Swipe your other thumb toward where the ball should go, as the ball arrives. Up-left goes left, straight up goes down the middle, up-right goes right.</dd>
+      <dt>Power</dt><dd>A fast swipe hits hard and deep, a slow one softer. Swipe down for a drop shot. A plain tap aims at the open court.</dd>
       <dt>Timing</dt><dd>Perfect timing lands on your target. Early or late swings drift off it.</dd>
       <dt>Serve</dt><dd>Tap to toss, then tap again at the top. Two faults lose the point.</dd>
     </dl>
@@ -1122,7 +1121,7 @@ function setHint() {
   if (S.mode === 'play' && !S.paused) {
     if (S.state === 'serve' && M.server === 0) h = S.toss < 0 ? (S.second ? 'Second serve: tap to toss' : 'Tap to toss') : 'Tap again at the top';
     else if (S.state === 'serve' && M.server === 1 && S.tips < 3) h = 'Get ready to return';
-    else if (S.state === 'rally' && S.tips < 4) h = 'Hold, slide to aim, lift to hit';
+    else if (S.state === 'rally' && S.tips < 4) h = 'Swipe toward where the ball should go';
   }
   const el = $('hint');
   if (el.textContent !== h) el.textContent = h;
@@ -1219,52 +1218,43 @@ function serveTap() {
   else if (S.toss > 0.12) playerServe();
   setHint();
 }
-// Aim: tap the spot on your opponent's side where you want the ball to land. A tap on your own half
-// lets the game pick the open court for you. Keyboard: hold an arrow to aim at a corner.
-function aimFromTouch(x, y) {
-  const bx = (x - OFFX) / SCALE, by = (y - OFFY) / SCALE;
-  if (by <= HY + 1) return null;
-  const d = CAM_H * F / (by - HY), wy = d - CAM_Y, wx = (bx - CX) * d / F;    // the court point under your finger
-  if (wy < NET_Y + 0.8) return null;
-  return { x: clamp(wx, -(HW + 0.8), HW + 0.8), y: clamp(wy, NET_Y + 1.6, L + 0.8) };
+// Swipe to hit: swipe your swing thumb toward where the ball should go. The swing happens the moment
+// the swipe starts, so timing still counts. The angle picks the direction (straight up = middle, up-left
+// = left corner, up-right = right corner), the speed picks the power, and a swipe down plays a drop shot.
+// A plain tap swings too, aimed at the open court. Keyboard: hold Space and let go, arrows to aim.
+const SWIPE_MIN = 22;
+function swipeShot(c) {
+  const dx = c.x - c.sx, dy = c.y - c.sy, dist = Math.hypot(dx, dy);
+  const dt = Math.max(0.02, (performance.now() - c.t0) / 1000);
+  const speed = dist / dt;                                               // pixels per second
+  if (dy > Math.abs(dx) * 0.6) return { dir: clamp(dx / dist, -1, 1) * 0.5, power: 0.3, drop: true };   // pulled down
+  const angle = Math.atan2(dx, Math.max(1, -dy));                          // 0 straight up, ±90° sideways
+  return { dir: clamp(angle / (Math.PI / 4), -1, 1), power: clamp(0.3 + speed / 1400, 0.3, 1), drop: false };   // 45° = the corner
 }
-function defaultAim() {                                   // the open court, deep
-  const open = cpu.x > 0.4 ? -1 : cpu.x < -0.4 ? 1 : (player.x > 0 ? -1 : 1);
-  return { x: open * 2.6, y: L - 2.6 };
-}
-function chargeAim(c) {
-  if (!c) return null;
-  if (c.x == null) {
-    const k = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
-    return k ? { x: k * (HW - 0.4), y: L - 2.5 } : null;
-  }
-  return { x: c.ax, y: c.ay };
-}
-// Slide the swing thumb to move the target like a trackpad, so your thumb never covers it.
-// Sliding keeps the power full; holding still before you lift softens the shot.
-function nudgeAim(c, x, y) {
-  const dxp = (x - c.lx) / SCALE, dyp = (y - c.ly) / SCALE;
-  c.lx = x; c.ly = y;
-  const d = c.ay + CAM_Y;
-  c.ax = clamp(c.ax + dxp * d / F * 0.95, -(HW + 0.3), HW + 0.3);                  // sideways: about a court width per thumb sweep
-  c.ay = clamp(c.ay - dyp * d * d / (CAM_H * F) * 0.45, NET_Y + 1.6, L + 0.3);      // depth: gentler
-  if (Math.hypot(dxp, dyp) > 0.6) c.t0 = performance.now();
+function shotTarget(shot) {
+  return { x: shot.dir * (HW - 0.35), y: shot.drop ? NET_Y + 2.4 : L - 2.6 - (1 - shot.power) * 4 + shot.power * 0.4 };
 }
 function startCharge(id, x, y) {
-  const a = x == null ? null : (aimFromTouch(x, y) || defaultAim());
-  player.charge = { id, t0: performance.now(), x: x == null ? null : x, y: y == null ? null : y,
-                    lx: x, ly: y, ax: a ? a.x : 0, ay: a ? a.y : L - 2.6 };
+  player.charge = { id, t0: performance.now(), sx: x, sy: y, x, y, fired: false };
 }
 function releaseCharge(id) {
   const c = player.charge;
   if (!c || c.id !== id) return;
   player.charge = null;
-  startSwing((performance.now() - c.t0) / 1000, chargeAim(c));
+  if (c.fired) return;
+  if (c.x == null) {                                                     // keyboard
+    const k = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0), hold = (performance.now() - c.t0) / 1000;
+    startSwing({ dir: k ? k * 0.85 : null, power: powerFor(hold), drop: hold >= TOUCH_HOLD });
+    return;
+  }
+  startSwing({ dir: null, power: 0.75, drop: false });                   // a plain tap: the open court
 }
-function startSwing(hold, aim) {
+function startSwing(shot) {
   if (S.mode !== 'play' || S.paused || S.state !== 'rally' || player.cool > 0) return false;
-  player.swingT = 0; player.cool = SWING_CD; player.hold = hold; player.connected = false;
-  player.aim = aim || null;
+  player.swingT = 0; player.cool = SWING_CD; player.connected = false;
+  player.shot = shot || { dir: null, power: 0.75, drop: false };
+  player.hold = player.shot.drop ? TOUCH_HOLD : 0.15;
+  if (player.shot.dir != null) { const tg = shotTarget(player.shot); player.aimFlash = { x: tg.x, y: tg.y, t: 0.6, drop: player.shot.drop }; }
   player.swing = 1;
   player.side = (ball.lastHitter === 'c' ? ball.x : player.x + 1) >= player.x ? 1 : -1;
   netSwing();
@@ -1289,7 +1279,11 @@ document.addEventListener('pointerdown', e => {
   }
 }, { passive: false });
 window.addEventListener('pointermove', e => {
-  if (player.charge && player.charge.id === e.pointerId && !(drag && drag.id === e.pointerId)) nudgeAim(player.charge, e.clientX, e.clientY);   // slide to aim
+  const ch = player.charge;
+  if (ch && ch.id === e.pointerId && !(drag && drag.id === e.pointerId) && !ch.fired) {   // swing thumb: swipe to hit
+    ch.x = e.clientX; ch.y = e.clientY;
+    if (Math.hypot(ch.x - ch.sx, ch.y - ch.sy) >= SWIPE_MIN) { ch.fired = true; startSwing(swipeShot(ch)); }
+  }
   if (!drag || e.pointerId !== drag.id) return;
   drag.cx = e.clientX; drag.cy = e.clientY;
   drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.ox, e.clientY - drag.oy));
@@ -1414,8 +1408,8 @@ function fault() {
 }
 function playerHit(dx, e) {
   // e: -1 swung early ... 0 perfect ... +1 swung late. Power comes from how quickly you lifted the tap.
-  const hold = player.hold || 0.15;
-  const power = powerFor(hold);
+  const shot = player.shot || { dir: null, power: powerFor(player.hold || 0.15), drop: (player.hold || 0) >= TOUCH_HOLD };
+  const power = shot.power, drop = shot.drop;
   const q = 1 - Math.abs(e);
   const side = dx >= 0 ? 1 : -1;
   player.side = side; ball.reach = null; player.connected = true;
@@ -1428,32 +1422,29 @@ function playerHit(dx, e) {
   } else {
     tag = q > 0.6 ? (power > 0.75 ? 'Strong' : 'Perfect') : e > 0 ? 'Late' : 'Early';
     // good timing places the ball into the open court; early pulls it across your body, late pushes it the other way
-    if (player.aim) {
-      // you chose the spot; timing decides how close you get to it
-      tx = player.aim.x + side * e * 0.9 + rand(-1, 1) * (0.2 + 0.9 * (1 - q));
+    if (shot.dir != null) {
+      // you chose the direction; timing decides how close you get to it
+      tx = shot.dir * (HW - 0.35) + side * e * 0.9 + rand(-1, 1) * (0.2 + 0.9 * (1 - q));
     } else {
       const open = cpu.x > 0.4 ? -1 : cpu.x < -0.4 ? 1 : (Math.random() < 0.5 ? -1 : 1);
       tx = open * (0.4 + 2.8 * q * q) + side * e * 2.0 + rand(-1, 1) * (0.3 + 0.9 * (1 - q));
     }
-    if (hold >= TOUCH_HOLD) {
+    if (drop) {
       ty = NET_Y + rand(1.6, 3.2); pace = 9; tx *= 0.7; clear = 0.15; if (q > 0.6) tag = 'Drop shot';
-    } else if (hold >= 0.32 && cpu.y < NET_Y + 5.5 && player.y < NET_Y - 4.5) {     // they're at the net: float it over them
+    } else if (power < 0.55 && cpu.y < NET_Y + 5.5 && player.y < NET_Y - 4.5) {     // they're at the net: float it over them
       ty = L - rand(0.8, 3) + (1 - q) * rand(-1, 2); pace = 10; clear = 3.2; tx *= 0.6; tag = q > 0.6 ? 'Lob' : tag;
     } else if (player.y > NET_Y - 4.5 && ball.z > 1.6) {
       ty = rand(L - 7, L - 3); pace = (16 + 10 * power) * PS.power; clear = 0.1; if (q > 0.6) tag = 'Smash';
-    } else if (player.aim) {
-      ty = player.aim.y + rand(-1, 1) * (0.3 + 1.1 * (1 - q));
-      pace = (11 + 11 * power * (0.6 + 0.4 * q)) * PS.power + rand(-0.8, 0.8);
     } else {
       ty = L - 2.6 - (1 - power) * 4 + rand(-1, 1) * (0.7 + 0.8 * (1 - q)) + power * 0.4;
       pace = (11 + 11 * power * (0.6 + 0.4 * q)) * PS.power + rand(-0.8, 0.8);
     }
   }
   ball.isServe = false;
-  if (MS) { if (q > 0.6 && tag !== 'Mishit') MS.perfects++; MS.lastKind = hold >= TOUCH_HOLD ? 'drop' : 'drive'; }
+  if (MS) { if (q > 0.6 && tag !== 'Mishit') MS.perfects++; MS.lastKind = drop ? 'drop' : 'drive'; }
   // Focus: chain Perfects to charge a Power shot
   let pshot = false;
-  if (tag !== 'Mishit' && player.focus >= 3 && hold < TOUCH_HOLD) {
+  if (tag !== 'Mishit' && player.focus >= 3 && !drop) {
     pshot = true; pace = Math.min(33, pace * (S.career && hasPerk('theo') ? 1.45 : 1.35) + 3); clear = Math.min(clear, 0.15); tag = 'Power shot';
     ty = clamp(ty, NET_Y + 5, L - 0.4);
     player.focus = 0;
@@ -1462,7 +1453,7 @@ function playerHit(dx, e) {
   else if (q > 0.6) { player.focus = Math.min(3, player.focus + 1); if (player.focus === 3) { tone(440, 0.08, 0.06); tone(660, 0.08, 0.06, 'square', 0.08); tone(990, 0.12, 0.06, 'square', 0.16); } }
   else player.focus = Math.max(0, player.focus - 1);
   renderFocus();
-  if (S.practice) { practiceEvent('returns'); if (q > 0.6 && tag !== 'Mishit') practiceEvent('perfects'); if (hold >= TOUCH_HOLD && tag !== 'Mishit') practiceEvent('drops'); if (pshot) practiceEvent('powers'); }
+  if (S.practice) { practiceEvent('returns'); if (q > 0.6 && tag !== 'Mishit') practiceEvent('perfects'); if (drop && tag !== 'Mishit') practiceEvent('drops'); if (pshot) practiceEvent('powers'); }
   launch('p', clamp(tx, -(HW + 2.5), HW + 2.5), ty, pace, clear);
   ball.power = pshot;
   if (pshot) { cpu.react += 0.15; S.hitstop = 0.12; S.shake = 1.4; burst(ball.x, ball.y, ball.z, 12, ['s', 'o', 'y'], 1.6); roar(0.9); }
@@ -1672,6 +1663,7 @@ function update(dt) {
   if (ball.mark) { ball.mark.t -= dt; if (ball.mark.t <= 0) ball.mark = null; }
   if (S.cheer > 0) S.cheer -= dt;
   if (player.cheer > 0) player.cheer -= dt;
+  if (player.aimFlash && player.aimFlash.t > 0) player.aimFlash.t -= dt;
   stepChallenge();
   if (cpu.cheer > 0) cpu.cheer -= dt;
   if (S.state !== 'serve') {
@@ -1968,13 +1960,7 @@ function drawPlayer(p, isPlayer) {
   pLine(hx, hy, gx, gy, PAL.k, 1);
   const spr = racketSprite(step, isPlayer ? PLAYER_RACKET : OPP_LOOK.racket);
   ctx.drawImage(spr, Math.round(hx + ux * 6) - 5, Math.round(hy + uy * 6) - 5);
-  if (winding) {   // power bar: starts full and drains while you hold
-    const hold = (performance.now() - p.charge.t0) / 1000;
-    const pw = powerFor(hold), bx = fx - 7, by = top - 6;
-    rect(bx, by, 14, 4, PAL.k);
-    if (hold >= TOUCH_HOLD) rect(bx + 1, by + 1, 12, 2, Math.floor(S.clock * 8) % 2 ? PAL.y : PAL.c);
-    else rect(bx + 1, by + 1, Math.max(1, Math.round(12 * pw)), 2, pw > 0.66 ? PAL.l : pw > 0.33 ? PAL.s : PAL.o);
-  }
+
 }
 function drawBall() {
   const [bx, by] = pp(ball.x, ball.y, ball.z);
@@ -1989,15 +1975,11 @@ function drawMarkers() {
     const [mx, my] = pp(ball.mark.x, ball.mark.y, 0);
     if (ball.mark.t > 0.2 || Math.floor(S.clock * 10) % 2) pRing(mx, my, 3, 1.5, PAL.w, false);
   }
-  // aim marker: while you hold your swing finger, a target shows where the shot is headed
-  if (player.charge && S.state === 'rally' && !ball.dead && ball.lastHitter === 'c') {
-    const aim = chargeAim(player.charge), hold = (performance.now() - player.charge.t0) / 1000;
-    if (aim) {
-    const [ax, ay] = pp(aim.x, hold >= TOUCH_HOLD ? NET_Y + 2.4 : aim.y, 0);
-    const col = hold >= TOUCH_HOLD ? PAL.c : PAL.y;
-    pRing(ax, ay + 1, 6, 2.5, PAL.k, false); pRing(ax, ay, 6, 2.5, col, false);   // outlined target ring
+  // where your swipe aimed, shown briefly
+  if (player.aimFlash && player.aimFlash.t > 0) {
+    const [ax, ay] = pp(player.aimFlash.x, player.aimFlash.y, 0), col = player.aimFlash.drop ? PAL.c : PAL.y;
+    pRing(ax, ay + 1, 6, 2.5, PAL.k, false); pRing(ax, ay, 6, 2.5, col, false);
     rect(ax - 1, ay, 3, 1, col); rect(ax, ay - 1, 1, 3, col);
-    }
   }
   // timing cue: a ring at your feet turns lime when it is time to swing (Easy and Club)
   if ((D().marker || ASSIST) && S.state === 'rally' && !ball.dead && ball.lastHitter === 'c' && ball.vy < 0 && !(ball.isServe && ball.bounces === 0)) {
@@ -2147,7 +2129,7 @@ const OPPS = {
     look: { skin: ['s', 'o', 'r'], hair: ['n', 'k'], style: 'short', shirt: ['w', 'm', 'M'], trim: 'r', racket: 'r', bg: 'c' },
     goal: { type: 'winners', n: 3, text: 'Hit 3 winners' },
     pre: "I'll meet you at the net. Every point. Try to get it past me.",
-    tip: "When Kenji rushes in, swing early or late to pass him, or hold a little longer to lob over him.",
+    tip: "When Kenji rushes in, swipe hard toward a corner to pass him, or swipe slowly to lob over him.",
     win: "Your passing shots... I'll be seeing those in my sleep." },
   sasha: { name: 'Sasha Volkov', tag: 'Touch artist', ai: { speed: 5.3, react: 0.2, miss: 0.28, err: 0.08, pace: 15, serve: 17, aim: 0.55, drop: 0.35 }, pts: 110,
     look: { skin: ['s', 'o', 'r'], hair: ['w', 'm'], style: 'bun', shirt: ['c', 'b', 'v'], trim: 'y', racket: 'y', bg: 'v' },
@@ -2172,7 +2154,7 @@ const OPPS = {
     look: { skin: ['s', 'o', 'r'], hair: ['s', 'o'], style: 'bob', shirt: ['w', 'm', 'M'], trim: 'c', racket: 'c', bg: 'b' },
     goal: { type: 'break', text: 'Win a game on her serve' },
     pre: "Serve, volley, shake hands. I like my matches short.",
-    tip: "Odette charges in behind every serve. Pass her wide, or hold a little longer to lob her.",
+    tip: "Odette charges in behind every serve. Swipe hard to a corner to pass her, or slowly to lob her.",
     win: "That was not short. Or fun. Fine, it was a little fun." },
   rex2: { name: 'Rex Vantage', tag: 'The rival, again', boss: true, ai: { speed: 6.2, react: 0.13, miss: 0.18, err: 0.06, pace: 20, serve: 21, aim: 0.7, drop: 0.12, net: 0.25 }, pts: 200,
     look: { skin: ['s', 'o', 'r'], hair: ['s', 'o'], style: 'swoop', shirt: ['w', 'm', 'M'], trim: 'r', racket: 's', bg: 'h' },
@@ -2283,7 +2265,7 @@ const INTRO = [
   ['bea', "I'm Bea. I keep these lawns. Forty years ago I played the Meadow Crown final on them."],
   ['bea', "Lost it, too. But that's another story.", '...'],
   ['bea', "The summer circuit starts at the park courts. Win there and the doors open one by one: County, Nationals, the Lawn Series. Then here."],
-  ['bea', "One finger to move. Another finger taps to swing. Quick taps hit hard, longer holds hit soft."],
+  ['bea', "One thumb moves you. Swipe the other thumb toward where you want the ball to go. Swipe fast to hit hard."],
   ['bea', "What do they call you?", 'name'],
   ['bea', "{name}. Good. Warm up on the practice court first, there's a bonus in it. Then the park courts. Bring your own water."],
 ];
@@ -2297,17 +2279,17 @@ const LOSS_LINES = ["Shake it off. Watch where they hit, then try again.", "Clos
   "Every champion lost a hundred times first. Go again.", "Coins still count. Spend them on upgrades if you're stuck."];
 const TIPS = [
   "Three Perfect shots in a row fill your Focus meter. The next swing is a Power shot.",
-  "Hold your swing thumb and slide it: the target on their side follows. Corners make them run, and running makes them miss.",
+  "Swipe toward the corner you want. A fast swipe hits hard. Corners make them run, and running makes them miss.",
   "Swing early to pull the ball cross-court. Swing late to send it down the line.",
-  "A quick tap hits hard. Hold a little longer for a softer, safer ball.",
-  "Hold until the power bar flashes for a drop shot. Great against players who stay back.",
+  "A fast swipe hits hard and deep. A slow swipe is softer and safer.",
+  "Swipe down for a drop shot. Great against players who stay back.",
   "Serve at the very top of the toss. Too early or too late and you'll fault.",
   "Your stars carry over. Replay a match any time to collect the ones you missed.",
   "Coins come from every match, even a loss. Upgrades make the later tiers fairer.",
   "Clay bounces high and slow. Indoor courts skid fast. Grass stays low.",
   "Long rallies earn bonus coins, and the crowd loves them.",
   "Step forward to the net after a strong shot. A volley ends the point fast.",
-  "Opponent at the net? Hold a little longer than a normal swing to float a lob over their head.",
+  "Opponent at the net? A slow, gentle swipe floats a lob over their head.",
 ];
 const UPGRADES = [
   { key: 'speed', name: 'Speed', desc: 'Run faster' },
@@ -3099,7 +3081,7 @@ function renderShop(body) {
 const PRACTICE = [
   { key: 'returns', n: 5, text: 'Return 5 balls' },
   { key: 'perfects', n: 3, text: 'Hit 3 Perfect shots' },
-  { key: 'drops', n: 1, text: 'Hold until the bar flashes: drop shot' },
+  { key: 'drops', n: 1, text: 'Swipe down for a drop shot' },
   { key: 'powers', n: 1, text: 'Chain 3 Perfects, then hit a Power shot' },
 ];
 let PR = null;
@@ -3114,7 +3096,7 @@ function startPractice() {
   $('nameC').textContent = 'Bea';
   stageScene(null, 'grass');
   cpu.y = cpu.ty = NET_Y + 1.4;
-  runCutscene([{ loc: 'lawn', title: 'Practice court', cast: ['bea', 'you'], lines: [['bea', "Practice court. I'll feed you balls. No score, no pressure."], ['bea', "Keep one finger down to move. Tap with another finger to swing."]] }], () => {
+  runCutscene([{ loc: 'lawn', title: 'Practice court', cast: ['bea', 'you'], lines: [['bea', "Practice court. I'll feed you balls. No score, no pressure."], ['bea', "Keep one thumb down to move. Swipe the other toward where the ball should go."]] }], () => {
     Object.assign(M, { games: [0, 0], pts: [0, 0], server: 1, over: false, winner: -1 });
     S.mode = 'play'; S.paused = false; S.second = false; player.focus = 0;
     hideCall(); setupPoint(); requestWake(); practiceChip();
