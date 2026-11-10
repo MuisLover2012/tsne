@@ -46,6 +46,8 @@ The loop:
 - **Coins:** every match pays coins, even a loss. Spend them on **Upgrades** (speed, reach, power, touch and serve) or in the **Shop** (caps, shirts and rackets).
 - **World ranking:** wins earn ranking points, from #900 up to #1.
 - **Focus:** three Perfect shots in a row fill the Focus meter, and your next swing becomes a **Power shot**.
+- **Boss perks:** every boss teaches you something permanent, like starting matches with a Focus pip or hitting harder Power shots.
+- **Swing assist:** a pause-menu option that widens the timing window and keeps the training rings on.
 - **Practice court:** Bea feeds you balls and teaches each skill. There's a coin bonus the first time.
 - **Daily challenge:** a new opponent every day with a twist (wind, fast balls or golden Perfects) and a bonus for winning.
 - **Endless Tour:** opens after the final. Play named three-round tournaments (quarterfinal, semifinal, final) for titles and a big coin bonus. Lose and you're out until the next event. Opponents keep getting harder as you chase and defend World #1.

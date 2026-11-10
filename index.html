@@ -408,6 +408,7 @@ body {
     <div class="actions">
       <button type="button" class="btn primary" id="resumeBtn">Resume</button>
       <button type="button" class="btn" id="soundBtn">Sound: on</button>
+      <button type="button" class="btn" id="assistBtn">Swing assist: off</button>
       <button type="button" class="btn" id="quitBtn">Quit to menu</button>
     </div>
   </div>
@@ -655,6 +656,8 @@ const cpu = { x: -1, y: L + 0.8, tx: -1, ty: L + 0.8, swing: 0, side: -1, run: 0
 const ball = { x: 0, y: 0, z: 1, vx: 0, vy: 0, vz: 0, bounces: 0, lastHitter: null, dead: true, isServe: false,
                rolling: false, land: null, landOut: false, trail: [], mark: null };
 const D = () => OPP;
+let ASSIST = false;
+try { ASSIST = localStorage.getItem('gcr-assist') === '1'; } catch (e) {}
 let crowd = [], standsBottom = 0;
 
 // ---------- Projection (in buffer pixels) ----------
@@ -1248,7 +1251,7 @@ function playerHit(dx, e) {
   // Focus: chain Perfects to charge a Power shot
   let pshot = false;
   if (tag !== 'Mishit' && player.focus >= 3 && hold < TOUCH_HOLD) {
-    pshot = true; pace = Math.min(32, pace * 1.35 + 3); clear = Math.min(clear, 0.15); tag = 'Power shot';
+    pshot = true; pace = Math.min(33, pace * (S.career && hasPerk('theo') ? 1.45 : 1.35) + 3); clear = Math.min(clear, 0.15); tag = 'Power shot';
     ty = clamp(ty, NET_Y + 5, L - 0.4);
     player.focus = 0;
     if (MS) MS.powers = (MS.powers || 0) + 1;
@@ -1696,7 +1699,7 @@ function drawMarkers() {
     if (ball.mark.t > 0.2 || Math.floor(S.clock * 10) % 2) pRing(mx, my, 3, 1.5, PAL.w, false);
   }
   // timing cue: a ring at your feet turns lime when it is time to swing (Easy and Club)
-  if (D().marker && S.state === 'rally' && !ball.dead && ball.lastHitter === 'c' && ball.vy < 0 && !(ball.isServe && ball.bounces === 0)) {
+  if ((D().marker || ASSIST) && S.state === 'rally' && !ball.dead && ball.lastHitter === 'c' && ball.vy < 0 && !(ball.isServe && ball.bounces === 0)) {
     const tc = (ball.y - (player.y + 0.3)) / -ball.vy;
     if (tc > 0 && tc < 0.4 && Math.abs(ball.x + ball.vx * tc - player.x) < PS.reach && (ball.bounces === 1 || !ball.landOut)) {
       const [fx, fy] = pp(player.x, player.y, 0);
@@ -1736,7 +1739,7 @@ function startMatch() {
   initAudio();
   if (S.online || NET.game) leaveOnline();
   $('nameC').textContent = 'CPU';
-  setOpponent(DIFFS[S.diff]); PS = statsFor(MID_STATS); RULES = { toWin: 4, by: 2 }; S.career = null; MS = null; S.practice = false; S.mod = {};
+  setOpponent(DIFFS[S.diff]); PS = withAssist(statsFor(MID_STATS)); RULES = { toWin: 4, by: 2 }; S.career = null; MS = null; S.practice = false; S.mod = {};
   if (typeof setVenue === 'function') setVenue('grass');
   Object.assign(M, { games: [0, 0], pts: [0, 0], server: 0, over: false, winner: -1 });
   S.mode = 'play'; S.paused = false; S.second = false; S.tips = 0;
@@ -1777,6 +1780,13 @@ $('menuBtn').addEventListener('click', () => { if (S.online || NET.game) leaveOn
 $('pauseBtn').addEventListener('click', pauseGame);
 $('resumeBtn').addEventListener('click', resumeGame);
 $('quitBtn').addEventListener('click', () => { if (S.career || S.practice) { S.paused = false; show('pause', false); openCareer(); return; } if (S.online || NET.game) leaveOnline(); S.mode = 'menu'; S.paused = false; show('pause', false); show('menu', true); hideCall(); setHint(); });
+function renderAssist() { $('assistBtn').textContent = 'Swing assist: ' + (ASSIST ? 'on' : 'off'); }
+$('assistBtn').addEventListener('click', () => {
+  ASSIST = !ASSIST; renderAssist();
+  try { localStorage.setItem('gcr-assist', ASSIST ? '1' : '0'); } catch (e) {}
+  if (S.mode === 'play' && !S.online) PS = S.career || S.practice ? careerStats() : withAssist(statsFor(MID_STATS));
+});
+renderAssist();
 $('soundBtn').addEventListener('click', () => {
   S.sound = !S.sound; $('soundBtn').textContent = `Sound: ${S.sound ? 'on' : 'off'}`;
   try { localStorage.setItem('gcr-sound', S.sound ? '1' : '0'); } catch (e) {}
@@ -2251,6 +2261,14 @@ function renderRanks(body) {
 }
 function renderUpgrades(body) {
   body.append(el('p', 'blurb', 'Spend coins on your game. Every match earns coins, even a loss.'));
+  const pk = el('div', 'trophies');
+  PERKS.forEach(k => {
+    const got = hasPerk(k.boss);
+    const card = el('div', 'trophy' + (got ? ' got' : ''));
+    card.append(el('div', 'oname', k.name), el('div', 'otag', got ? k.desc : `Beat ${OPPS[k.boss].name} to learn this`));
+    pk.append(card);
+  });
+  body.append(el('h3', 'shophead', 'Perks from the bosses'), pk, el('h3', 'shophead', 'Upgrades'));
   UPGRADES.forEach(u => {
     const lv = CAREER.stats[u.key], max = lv >= UPGRADE_COST.length, cost = UPGRADE_COST[lv];
     const row = el('div', 'upg');
@@ -2271,6 +2289,25 @@ function renderUpgrades(body) {
   });
 }
 
+// ---------- Career: perks and assist ----------
+// Each boss teaches you something that sticks for the rest of your career.
+const PERKS = [
+  { boss: 'marla', name: "Marla's mug", desc: 'Start every match with 1 Focus' },
+  { boss: 'rex1', name: 'Rivalry', desc: 'First serves fault less often' },
+  { boss: 'theo', name: 'Big T power', desc: 'Power shots hit even harder' },
+  { boss: 'rex2', name: 'Calm under pressure', desc: 'A slightly wider timing window' },
+  { boss: 'victor', name: 'Champion\'s legs', desc: 'Run a little faster' },
+];
+const hasPerk = id => !!(CAREER && CAREER.best[id]);
+function careerStats() {
+  const st = statsFor(CAREER.stats);
+  if (hasPerk('rex1')) st.serveF *= 0.85;
+  if (hasPerk('rex2')) st.touch += 0.012;
+  if (hasPerk('victor')) st.speed += 0.3;
+  return withAssist(st);
+}
+function withAssist(st) { if (ASSIST) st.touch += 0.035; return st; }
+
 // ---------- Career: matches ----------
 function stageScene(oppId, venue) {
   // the court behind a conversation: both players at the net, ball out of sight
@@ -2289,7 +2326,7 @@ function startCareerMatch(id) {
   if (S.online || NET.game) leaveOnline();
   ['career', 'menu', 'end', 'online', 'results', 'pause'].forEach(id => show(id, false));
   setOpponent({ ...o.ai, marker: t.marker, look: o.look });
-  PS = statsFor(CAREER.stats); RULES = { ...t.rules };
+  PS = careerStats(); RULES = { ...t.rules };
   S.career = { id, tier: ti, goal: o.goal, coins: t.coins, pts: o.pts, name: o.name }; S.mod = {};
   stageScene(id, t.venue);
   $('nameC').textContent = o.name.split(' ')[0].slice(0, 6);
@@ -2297,7 +2334,7 @@ function startCareerMatch(id) {
 }
 function beginCareerMatch() {
   initAudio();
-  player.focus = 0;
+  player.focus = hasPerk('marla') ? 1 : 0;
   MS = freshMS();
   Object.assign(M, { games: [0, 0], pts: [0, 0], server: 0, over: false, winner: -1 });
   S.mode = 'play'; S.paused = false; S.second = false; S.tips = Math.min(S.tips, 2);
@@ -2358,7 +2395,11 @@ function careerResults() {
     else if (c.endless && tourOut && tourOut.title) lines = [['bea', `${tourOut.name} champion! That's ${CAREER.endless.titles} title${CAREER.endless.titles === 1 ? '' : 's'} on the Endless Tour.`]];
     else if (c.endless && won) lines = [['bea', `Through to the ${ROUNDS[tourOut.round + 1]}. Keep it going.`]];
     else if (c.endless) lines = [['bea', `Out in the ${ROUNDS[tourOut.round]}. There's a new tournament next week.`]];
-    else if (won) lines = [[c.id, o.win], ...(first ? (o.after || []) : [])];
+    else if (won) {
+      lines = [[c.id, o.win], ...(first ? (o.after || []) : [])];
+      const perk = first && PERKS.find(k => k.boss === c.id);
+      if (perk && c.id !== 'victor') lines.push(['bea', `You learned something from ${o.name}. New perk, ${perk.name}: ${perk.desc.toLowerCase()}.`]);
+    }
     else lines = [['bea', LOSS_LINES[(Math.random() * LOSS_LINES.length) | 0]], ['bea', o.tip]];
     const finale = won && first && c.id === 'victor';
     if (finale) { CAREER.champion = true; saveCareer(); lines = lines.concat(ENDING); confetti(260); setVenue('centre'); }
@@ -2484,6 +2525,11 @@ function genEndless(seed, level) {
 const E_EVENTS = ['Harbour Open', 'Riverside Classic', 'Alpine Indoor Cup', 'Sunset Clay Masters', 'Lakeside Lawn Trophy',
   'Capital Championships', 'Coastal Grass Open', 'Desert Hard Court Cup', 'Northern Lights Indoors', 'Orchard Invitational'];
 const ROUNDS = ['Quarterfinal', 'Semifinal', 'Final'];
+const CAMEO_LINES = {
+  rex2: ["Endless Tour, huh? Thought I'd show up. Still not saying you're good.", "Fine. You're good. I said it. Happy?"],
+  grey: ["...Again.", "...Good."],
+  victor: ["Retirement is boring. One more final, for old times' sake.", "Bea chose well. Tell her I said so."],
+};
 function curTour() {
   const e = CAREER.endless;
   if (!e.tour) {
@@ -2498,7 +2544,17 @@ function endlessPool() {
   const t = curTour(), level = 1 + CAREER.endless.wins;
   const o = genEndless(t.seed + t.round * 101, level + t.round);
   o.venue = t.venue; o.tag = ROUNDS[t.round] + ' · ' + o.tag;
-  if (t.round === 2) { o.coins += 60; o.pts += 40; }
+  if (t.round === 2) {
+    o.coins += 60; o.pts += 40;
+    const r = (t.seed % 10) / 10;
+    const cameo = r < 0.15 ? 'victor' : r < 0.3 ? 'grey' : r < 0.5 ? 'rex2' : null;     // old faces turn up in finals
+    if (cameo) {
+      const base = OPPS[cameo];
+      o.name = base.name; o.look = base.look; o.ai = { ...base.ai, speed: Math.max(base.ai.speed, o.ai.speed), err: Math.min(base.ai.err, o.ai.err), pace: Math.max(base.ai.pace, o.ai.pace) };
+      o.tag = 'Final · ' + base.tag;
+      o.pre = CAMEO_LINES[cameo][0]; o.win = CAMEO_LINES[cameo][1];
+    }
+  }
   OPPS.e0 = o;
   return ['e0'];
 }
@@ -2532,7 +2588,7 @@ function startEndlessMatch(id) {
   if (S.online || NET.game) leaveOnline();
   ['career', 'menu', 'end', 'online', 'results', 'pause'].forEach(id => show(id, false));
   setOpponent({ ...o.ai, marker: false, look: o.look });
-  PS = statsFor(CAREER.stats); RULES = { toWin: 3, by: 1 };
+  PS = careerStats(); RULES = { toWin: 3, by: 1 };
   const t = curTour();
   S.career = { id, tier: 5, goal: o.goal, coins: o.coins, pts: o.pts, name: o.name, endless: true, tourName: t.name, roundName: ROUNDS[t.round] }; S.mod = {};
   stageScene(id, o.venue);
@@ -2665,7 +2721,7 @@ function startPractice() {
   if (S.online || NET.game) leaveOnline();
   ['career', 'menu', 'end', 'online', 'results', 'pause'].forEach(id => show(id, false));
   setOpponent({ speed: 6, react: 0.15, miss: 0.1, err: 0, pace: 12, serve: 11, aim: 0, marker: true, look: CAST.bea.look });
-  PS = statsFor(CAREER.stats); RULES = { toWin: 99, by: 1 };
+  PS = careerStats(); RULES = { toWin: 99, by: 1 };
   setVenue('grass');
   S.career = null; S.practice = true; MS = null; S.mod = {};
   PR = { step: 0, returns: 0, perfects: 0, drops: 0, powers: 0 };
@@ -2750,7 +2806,7 @@ function startDaily() {
   if (S.online || NET.game) leaveOnline();
   ['career', 'menu', 'end', 'online', 'results', 'pause'].forEach(id => show(id, false));
   setOpponent({ ...o.ai, marker: d.tier < 3, look: o.look });
-  PS = statsFor(CAREER.stats); RULES = { toWin: 3, by: 1 };
+  PS = careerStats(); RULES = { toWin: 3, by: 1 };
   const already = CAREER.daily === todayKey();
   S.career = { id: 'daily', tier: d.tier, goal: o.goal, coins: already ? 40 : d.coins, pts: 20, name: o.name, daily: true };
   stageScene('daily', o.venue);
