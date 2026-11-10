@@ -1235,20 +1235,20 @@ function planIntercept() {
 // Every story boss has a signature shot. Beat them to learn it and pick one in Upgrades: a full Focus meter
 // fires it. Opponents charge their own meter as they hit, glow when it's full and shout the name as they fire.
 const SPECIALS = {
-  power:     { name: 'Power shot', owner: null,     col: ['s', 'o'],      desc: 'A flat, heavy drive. Everyone starts with it.' },
-  meteor:    { name: 'Meteor',     owner: 'marla',  col: ['v', 'o', 's'], desc: 'A sky-high lob that crashes down and kicks up over their head.',
+  power:     { name: 'Power shot', owner: null,     col: ['w', 's', 'o'], desc: 'A heavy ball to the deep corner. It knocks their racket back: they often miss, and any return sits up short for you.' },
+  meteor:    { name: 'Meteor',     owner: 'marla',  col: ['h', 'o', 's'], desc: 'A sky-high lob that crashes down and kicks up over their head.',
                counter: 'When it goes up, run back. Way back.' },
-  frost:     { name: 'Frostbite',  owner: 'rex1',   col: ['c', 'w'],      desc: 'Skids off the court, low and fast, after it bounces.',
+  frost:     { name: 'Frostbite',  owner: 'rex1',   col: ['y', 'w', 'c'], desc: 'Skids off the court, low and fast, after it bounces.',
                counter: 'It stays low and speeds up after the bounce. Swing a touch early.' },
-  fire:      { name: 'Fireball',   owner: 'theo',   col: ['r', 'o', 'y'], desc: 'The fastest shot in the game, trailing flames.',
+  fire:      { name: 'Fireball',   owner: 'theo',   col: ['r', 'o', 's'], desc: 'The fastest shot in the game, trailing flames.',
                counter: "It's just fast. Very, very fast. Be in place before it's hit." },
-  lightning: { name: 'Lightning',  owner: 'rex2',   col: ['y', 'w'],      desc: 'Zaps across to the other corner as it crosses the net.',
+  lightning: { name: 'Lightning',  owner: 'rex2',   col: ['s', 'w'],      desc: 'Zaps across to the other corner as it crosses the net.',
                counter: 'It switches sides at the net. Wait for the zap, then move.' },
   mirage:    { name: 'Mirage',     owner: 'victor', col: ['w', 'c'],      desc: 'Splits into three balls. Only one is real.',
                counter: 'Three balls, one shadow. Follow the shadow.' },
   hurricane: { name: 'Hurricane',  owner: 'mara',   col: ['c', 't', 'w'], desc: 'Curves hard through the air into a corner.',
                counter: "It starts wide and bends back in. Run to where it's bending, not where it's going." },
-  phantom:   { name: 'Phantom',    owner: 'silas1', col: ['v', 'n'],      desc: 'Vanishes in flight and reappears just before it lands.',
+  phantom:   { name: 'Phantom',    owner: 'silas1', col: ['h', 'n'],      desc: 'Vanishes in flight and reappears just before it lands.',
                counter: "It disappears, but its shadow doesn't. Follow the shadow." },
 };
 const SP_ORDER = Object.keys(SPECIALS);
@@ -1280,7 +1280,7 @@ function fireSpecial(who, kind, tx, ty, pace, clear) {
     else if (kind === 'hurricane') { pace = Math.min(25, pace) * boost; clear = 0.4; const sd = side(tx); tx = sd * (HW - 0.8); fx.ax = -sd * 11; react = 0.1; }
     else if (kind === 'phantom') { pace = Math.min(28, pace * 1.1 + 1) * boost; clear = 0.2; fx.hide = true; react = 0.35; }
     else if (kind === 'mirage') { pace = Math.min(28, pace * 1.1 + 1) * boost; clear = 0.2; fx.decoys = true; react = 0.3; }
-    else { pace = Math.min(33, pace * (boost > 1 ? 1.45 : 1.35) + 3); clear = Math.min(clear, 0.15); }
+    else { pace = Math.min(27, pace * (boost > 1 ? 1.3 : 1.2) + 2); clear = Math.min(clear, 0.15); ty = toC ? L - rand(1.2, 2.4) : rand(1.2, 2.4); tx = side(tx) * Math.max(Math.abs(tx), HW - 1.8); react = 0.05; }
   }
   let aimX = tx;
   if (fx.ax) for (let i = 0; i < 3; i++) {                // aim wide so the curve bends it back onto the target
@@ -1295,7 +1295,8 @@ function fireSpecial(who, kind, tx, ty, pace, clear) {
   if (toC) cpu.react += react;
   sfx.special(kind);
   burst(ball.x, ball.y, ball.z, 14, SPECIALS[kind].col, 1.6);
-  S.hitstop = 0.12; S.shake = kind === 'fire' || kind === 'meteor' ? 1.8 : 1.2;
+  S.hitstop = kind === 'power' ? 0.16 : 0.12; S.shake = kind === 'fire' || kind === 'meteor' || kind === 'power' ? 1.8 : 1.2;
+  S.wave = { x: ball.x, y: ball.y, t: 0, c: SPECIALS[kind].col[0] };
 }
 function cpuShout(kind) {
   const elb = $('bubble');
@@ -1322,6 +1323,7 @@ function renderOppSp() {
 function stepSpecial(dt) {
   const fx = ball.fx;
   if (S.flash > 0) S.flash -= dt;
+  if (S.wave) { S.wave.t += dt; if (S.wave.t > 0.35) S.wave = null; }
   if (fx && fx.bolt > 0) fx.bolt -= dt;
   if (fx && !ball.dead && ball.bounces === 0) {
     const cols = SPECIALS[fx.k].col;
@@ -1359,7 +1361,7 @@ function drawSpecialBall(bx, by, k, trail) {
     const [tx, ty] = trail[i], sz = 1 + Math.round(3 * i / trail.length);
     rect(tx - (sz >> 1), ty - (sz >> 1), sz, sz, PAL[cols[(i + fl) % cols.length]]);
   }
-  if (k !== 'power') {                                           // a flickering halo
+  {                                                              // a flickering halo
     const c = PAL[cols[fl % cols.length]], r = 4 + (fl & 1);
     for (let j = -r; j <= r; j++) { const w = Math.round(Math.sqrt(r * r - j * j)); rect(bx - w, by + j, w * 2 + 1, 1, j === -r || j === r ? PAL.k : c); }
   }
@@ -1647,7 +1649,9 @@ function cpuHit(dx) {
   const fatigue = Math.max(0, (S.rally || 0) - 6) * 0.015;          // long rallies wear everyone down
   const pressure = 0.1 * stretch * stretch + Math.max(0, spd - 16) * 0.012 + Math.max(0, (cpu.runDist || 0) - 3) * 0.03 + (ball.power ? 0.14 : 0) + fatigue;
   ball.isServe = false;
-  if (Math.random() < d.err + pressure) {
+  const heavy = !!(ball.fx && ball.fx.k === 'power');   // a Power shot knocks the racket back
+  if (heavy) { cpu.cheer = 0; S.shake = Math.max(S.shake || 0, 0.8); burst(ball.x, ball.y, ball.z, 10, ['w', 's', 'o'], 1.2); }
+  if (Math.random() < d.err + pressure + (heavy ? 0.12 : 0)) {
     if (Math.random() < 0.45) { launch('c', rand(-HW + 0.5, HW - 0.5), NET_Y - 0.3, d.pace, -99); return; }
     const wide = Math.random() < 0.5;
     const tx = wide ? (Math.random() < 0.5 ? -1 : 1) * rand(HW + 0.25, HW + 1.3) : rand(-HW + 0.5, HW - 0.5);
@@ -1656,7 +1660,7 @@ function cpuHit(dx) {
     return;
   }
   let tx, ty = d.deep ? rand(0.5, 3.6) : rand(0.7, 5.6), pace = d.pace * rand(0.9, 1.08), clear = 0.3, kind = 'drive';
-  const weak = Math.random() < pressure * 3;          // a defensive reply that sits up for you
+  const weak = heavy || Math.random() < pressure * 3;          // a defensive reply that sits up for you
   if (weak) { ty = rand(4.5, NET_Y - 2.5); pace *= 0.78; }
   if (Math.random() < d.aim) tx = (player.x > 0 ? -1 : 1) * rand(1.4, HW - 0.4);
   else tx = rand(-(HW - 0.6), HW - 0.6);
@@ -1770,7 +1774,7 @@ function physics(dt) {
   }
   const fx = ball.fx;
   if (fx && fx.real && !fx.jinked && (prevY - NET_Y) * (ball.y - NET_Y) <= 0 && prevY !== ball.y) {   // Lightning zaps across
-    fx.jinked = true; jink(ball, fx); fx.bolt = 0.25; S.flash = 0.07; sfx.zap(); burst(ball.x, ball.y, ball.z, 10, ['y', 'w'], 1.2);
+    fx.jinked = true; jink(ball, fx); fx.bolt = 0.25; S.flash = 0.07; sfx.zap(); burst(ball.x, ball.y, ball.z, 10, ['s', 'w'], 1.2);
   }
   if (ball.z <= 0 && ball.vz < 0) {
     ball.z = 0;
@@ -2165,9 +2169,9 @@ function drawBall() {
   if (fx && fx.bolt > 0) {                                  // Lightning: a bolt from the sky
     let x0 = bx, y0 = 0;
     const n = 6;
-    for (let i = 1; i <= n; i++) { const x1 = i === n ? bx : bx + Math.round(rand(-6, 6)), y1 = Math.round(by * i / n); pLine(x0, y0, x1, y1, PAL.y, 2); pLine(x0, y0, x1, y1, PAL.w, 1); x0 = x1; y0 = y1; }
+    for (let i = 1; i <= n; i++) { const x1 = i === n ? bx : bx + Math.round(rand(-6, 6)), y1 = Math.round(by * i / n); pLine(x0, y0, x1, y1, PAL.s, 2); pLine(x0, y0, x1, y1, PAL.w, 1); x0 = x1; y0 = y1; }
   }
-  if (fx && fx.hidden) { if (Math.floor(S.clock * 30) % 7 === 0) rect(bx, by, 1, 1, PAL.v); return; }   // Phantom: gone
+  if (fx && fx.hidden) { if (Math.floor(S.clock * 30) % 7 === 0) rect(bx, by, 1, 1, PAL.h); return; }   // Phantom: gone
   if (fx) { drawSpecialBall(bx, by, fx.k, ball.trail); return; }
   for (let i = 0; i < ball.trail.length - 1; i++) {
     const [tx, ty] = ball.trail[i];
@@ -2179,6 +2183,10 @@ function drawMarkers() {
   if (ball.mark) {
     const [mx, my] = pp(ball.mark.x, ball.mark.y, 0);
     if (ball.mark.t > 0.2 || Math.floor(S.clock * 10) % 2) pRing(mx, my, 3, 1.5, PAL.w, false);
+  }
+  if (S.wave) {                                             // shockwave from a special
+    const [wx, wy] = pp(S.wave.x, S.wave.y, 0), r = 4 + S.wave.t * 70;
+    pRing(wx, wy, Math.round(r), Math.max(1, Math.round(r / 2.4)), PAL[S.wave.c], S.wave.t > 0.2);
   }
   // where your swipe aimed, shown briefly
   if (player.aimFlash && player.aimFlash.t > 0) {
