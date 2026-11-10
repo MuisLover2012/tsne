@@ -62,6 +62,10 @@ The loop:
 
 Your career saves on your device. In the claude.ai version it also saves privately to your account (only for viewers allowed to write data, such as the owner and Contributors).
 
+## Theme song
+
+The theme is an 8-bit arrangement of a recording by the game's creator. See [`music/README.md`](music/README.md).
+
 ## Quick match
 
 There are three computer opponents: Easy, Club and Pro. Easy and Club show a marker where the opponent's shot will land.
