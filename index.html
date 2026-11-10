@@ -289,6 +289,7 @@ body {
 #hubBody { display: flex; flex-direction: column; gap: 14px; }
 .tier { display: flex; flex-direction: column; gap: 8px; }
 .tier.locked { opacity: .6; }
+.tierdone { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .tierhead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .tierhead h3 { margin: 0; font-family: var(--display); font-size: 24px; text-transform: uppercase; text-shadow: 2px 2px 0 var(--ink); }
 .rules { font-family: var(--label); font-size: 10px; text-transform: uppercase; color: var(--panel-dim); }
@@ -2322,6 +2323,7 @@ function advanceScene(e) {
 
 // ---------- Career: hub ----------
 let HUB_TAB = 'tour';
+const EXPANDED = new Set();
 function stars(n, max = 3) { return '★'.repeat(n) + '☆'.repeat(max - n); }
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 function portraitCanvas(look, big) { const c = el('canvas', big ? 'portrait big' : 'portrait'); drawPortrait(c, look); return c; }
@@ -2386,6 +2388,17 @@ function renderTour(body) {
     const sec = el('section', 'tier' + (open ? '' : ' locked'));
     const head = el('div', 'tierhead');
     head.append(el('h3', null, t.name), el('span', 'rules', `First to ${t.rules.toWin} game${t.rules.toWin > 1 ? 's' : ''}`));
+    const done = open && t.opps.every(id => CAREER.best[id]);
+    if (done && !EXPANDED.has(t.id)) {                       // finished tiers fold away
+      const got = t.opps.reduce((a, id) => a + (CAREER.best[id] || 0), 0);
+      const tg = el('button', 'btn small', 'Show');
+      tg.type = 'button'; tg.addEventListener('click', () => { EXPANDED.add(t.id); renderHub(); });
+      const row = el('div', 'tierdone');
+      row.append(el('span', 'blurb', `Complete · ${got} of ${t.opps.length * 3} ★`), tg);
+      sec.append(head, row);
+      body.append(sec);
+      return;
+    }
     sec.append(head, el('p', 'blurb', open ? t.blurb : `Locked. Beat ${OPPS[TIERS[ti - 1].opps.at(-1)].name} to enter.`));
     if (open) t.opps.forEach(id => {
       const o = OPPS[id], st = oppState(ti, id);
