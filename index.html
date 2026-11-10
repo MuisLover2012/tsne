@@ -340,6 +340,25 @@ body {
 @keyframes vsr { from { transform: translateX(120vw); } to { transform: none; } }
 @keyframes vsz { from { transform: scale(3); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { #vs.go .vleft, #vs.go .vright, #vs.go .vsx { animation: none; } }
+#cut { position: fixed; inset: 0; z-index: 8; background: var(--ink); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  padding-block: calc(env(safe-area-inset-top, 0px) + 16px) calc(env(safe-area-inset-bottom, 0px) + 16px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+#cut[hidden] { display: none; }
+.cutstage { position: relative; animation: cutopen .35s steps(5) both; }
+@keyframes cutopen { from { transform: scaleY(0.05); } to { transform: none; } }
+#cutCv { display: block; image-rendering: pixelated; image-rendering: crisp-edges; outline: 3px solid var(--panel-edge); outline-offset: 3px; }
+#cutTitle { position: absolute; left: 10px; top: 10px; font-family: var(--display); font-weight: 700; font-size: 20px; text-transform: uppercase;
+  color: var(--chalk); text-shadow: 2px 2px 0 var(--ink), -2px -2px 0 var(--ink), 2px -2px 0 var(--ink), -2px 2px 0 var(--ink);
+  opacity: 0; transition: opacity .3s steps(3); pointer-events: none; max-width: calc(100% - 20px); }
+#cutTitle.show { opacity: 1; }
+.cutbox { max-width: 100%; display: flex; flex-direction: column; gap: 6px; background: var(--panel); border: 4px solid var(--ink);
+  outline: 3px solid var(--panel-edge); outline-offset: -8px; padding: 14px 16px; box-shadow: 6px 6px 0 #000; }
+#cutText.narr { font-style: normal; color: var(--ball); text-align: center; }
+#cutForm { display: flex; gap: 8px; }
+#cutForm[hidden] { display: none; }
+#cutInput { flex: 1; min-width: 0; font-family: var(--display); font-size: 18px; padding: 6px 8px; border: 3px solid var(--ink); background: var(--panel-ink); color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .cutstage { animation: none; } }
 #dialog { position: fixed; inset: 0; z-index: 6; display: flex; align-items: flex-end; justify-content: center;
   background: rgb(26 28 44 / .25); cursor: pointer;
   padding-block: 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
@@ -500,6 +519,16 @@ body {
     <div class="vside vright"><canvas id="vsOpp" class="portrait big" width="24" height="24"></canvas><div class="vsname" id="vsOppName"></div><div class="vssub" id="vsOppSub"></div></div>
   </div>
   <div class="vsvenue" id="vsVenue"></div>
+</div>
+
+<div id="cut" hidden>
+  <div class="cutstage"><canvas id="cutCv" width="160" height="120" aria-hidden="true"></canvas><div id="cutTitle"></div></div>
+  <div class="cutbox" role="dialog" aria-live="polite">
+    <div class="dname" id="cutName"></div>
+    <p class="dtext" id="cutText"></p>
+    <form id="cutForm" hidden><label for="cutInput" class="sr">Your name</label><input id="cutInput" maxlength="12" autocomplete="off" placeholder="Your name"><button class="btn small primary" type="submit">OK</button></form>
+    <div class="dmore" id="cutMore">Tap to continue ▸</div>
+  </div>
 </div>
 
 <div id="dialog" hidden>
@@ -2087,7 +2116,7 @@ const SEASON2_END = [
   ['bea', "{name}. Two crowns. One under the sun, one under the lights."],
   ['bea', "I'm hanging up the rake. Old Meadow needs a new keeper of the lawns."],
   ['bea', "It's yours. The grass, the club, the ball kids. Teach them like I taught you."],
-  ['you', "The Night Crown is yours. Thank you for playing Grass Court Rally."],
+  ['narr', "The Night Crown is yours. Thank you for playing Grass Court Rally."],
 ];
 const TIERS = [
   { id: 'park', name: 'Park Courts', venue: 'park', rules: { toWin: 2, by: 1 }, coins: 40, marker: true, opps: ['pip', 'toby', 'marla'],
@@ -2113,9 +2142,9 @@ const TIERS = [
     intro: [['bea', "The Night Final. Floodlights on our lawns. First time ever."], ['bea', "Strange to see the grass glow like that. Strange, and beautiful."]] },
 ];
 const INTRO = [
-  ['bea', "You there. Ball kid. Three summers at Old Meadow and you've never once let a ball bounce twice."],
+  ['bea', "You there. Ball kid. Three summers at Old Meadow and you've never once let a ball bounce twice.", '!'],
   ['bea', "I'm Bea. I keep these lawns. Forty years ago I played the Meadow Crown final on them."],
-  ['bea', "Lost it, too. But that's another story."],
+  ['bea', "Lost it, too. But that's another story.", '...'],
   ['bea', "The summer circuit starts at the park courts. Win there and the doors open one by one: County, Nationals, the Lawn Series. Then here."],
   ['bea', "One finger to move. Another finger taps to swing. Quick taps hit hard, longer holds hit soft."],
   ['bea', "What do they call you?", 'name'],
@@ -2124,8 +2153,8 @@ const INTRO = [
 const ENDING = [
   ['bea', "{name}. Look at that crowd."],
   ['bea', "Forty years ago I lost on this court and I thought that was the end of my story."],
-  ['bea', "Turns out it was the middle. Thank you."],
-  ['you', "The Meadow Crown is yours. The Endless Tour is open, and Season Two starts at the Harbour Masters."],
+  ['bea', "Turns out it was the middle. Thank you.", '<3'],
+  ['narr', "The Meadow Crown is yours. The Endless Tour is open, and Season Two starts at the Harbour Masters."],
 ];
 const LOSS_LINES = ["Shake it off. Watch where they hit, then try again.", "Close. Next time, swing a hair earlier.",
   "Every champion lost a hundred times first. Go again.", "Coins still count. Spend them on upgrades if you're stuck."];
@@ -2213,6 +2242,7 @@ function drawPortrait(cv, look) {
   cv.width = N; cv.height = N;
   const x = cv.getContext('2d');
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    if (!g[j][i] && !look.bg) continue;            // cutscene busts have no background tile
     x.fillStyle = PAL[g[j][i] || look.bg];
     x.fillRect(i, j, 1, 1);
   }
@@ -2334,7 +2364,7 @@ function openCareer() {
   if (!CAREER) {
     CAREER = newCareer();
     stageScene(null, 'grass');
-    runScene(INTRO, () => { saveCareer(); openCareer(); });
+    runCutscene([{ loc: 'lawn', title: 'Old Meadow · Late summer', cast: ['bea', 'you'], lines: INTRO }], () => { saveCareer(); openCareer(); });
     return;
   }
   // a tier's story plays the first time you reach it
@@ -2342,7 +2372,7 @@ function openCareer() {
     if (tierOpen(i) && !CAREER.seen[TIERS[i].id]) {
       CAREER.seen[TIERS[i].id] = true; saveCareer();
       stageScene(null, TIERS[i].venue);
-      runScene(TIERS[i].intro, openCareer);
+      runCutscene([{ loc: TIER_LOC[TIERS[i].id], venue: TIERS[i].venue, title: TIERS[i].name, cast: ['bea', 'you'], lines: TIERS[i].intro }], openCareer);
       return;
     }
   }
@@ -2530,7 +2560,8 @@ function startCareerMatch(id) {
   S.mod = t.venue === 'harbour' ? { wind: (Math.random() < 0.5 ? -1 : 1) * 0.6 } : {};
   stageScene(id, t.venue);
   $('nameC').textContent = o.name.split(' ')[0].slice(0, 6);
-  runScene([[id, o.pre], ['bea', o.tip]], () => showVs(o, t.name, beginCareerMatch));
+  runCutscene([{ loc: 'locker', title: t.name, cast: ['bea', 'you'], lines: [['bea', o.tip]] },
+                { loc: 'tunnel', venue: t.venue, cast: [id, 'you'], lines: [[id, o.pre, o.boss ? '!' : null]] }], () => showVs(o, t.name, beginCareerMatch));
 }
 function beginCareerMatch() {
   initAudio();
@@ -2607,8 +2638,19 @@ function careerResults() {
     if (finale) { CAREER.champion = true; saveCareer(); lines = lines.concat(ENDING); confetti(260); setVenue('centre'); }
     if (won && first && c.id === 'silas2') { CAREER.champion2 = true; saveCareer(); lines = lines.concat(SEASON2_END); confetti(300); }
     if (after === 1 && before > 1) lines = lines.concat([['bea', "World Number 1, {name}. From ball kid to Number 1."], ['bea', "Now comes the hard part. Staying there."]]);
+    // stage it: a handshake at the net after a story win, the locker room otherwise, then the big moments
+    const shots = [];
+    const venue = special ? (OPPS[c.id] && OPPS[c.id].venue) || VEN_ID : TIERS[c.tier].venue;
+    const opp = lines.filter(l => l[0] === c.id), coach = lines.filter(l => l[0] !== c.id && !ENDING.includes(l) && !SEASON2_END.includes(l));
+    if (opp.length) shots.push({ loc: 'net', venue, cast: [c.id, 'you'], lines: opp });
+    const rank1 = coach.filter(l => /World Number 1/.test(l[1]) || /hard part/.test(l[1]));
+    const rest = coach.filter(l => !rank1.includes(l));
+    if (rest.length) shots.push({ loc: won && !special ? 'clubhouse' : 'locker', cast: ['bea', 'you'], lines: rest });
+    if (lines.some(l => ENDING.includes(l))) shots.push({ loc: 'ceremony', venue: 'centre', title: 'The Meadow Crown', cast: ['bea', 'you'], lines: ENDING, confetti: true });
+    if (lines.some(l => SEASON2_END.includes(l))) shots.push({ loc: 'night', title: 'The Night Crown', cast: ['bea', 'you'], lines: SEASON2_END, confetti: true });
+    if (rank1.length) shots.push({ loc: 'press', title: 'World Number 1', cast: ['bea', 'you'], lines: rank1 });
     stageScene(special ? null : c.id, null);
-    runScene(lines, () => { if (typeof checkTrophies === 'function') checkTrophies(); openCareer(); });
+    runCutscene(shots, () => { if (typeof checkTrophies === 'function') checkTrophies(); openCareer(); });
   };
   $('rAgain').textContent = c.endless ? (won ? 'Next round' : 'New tournament') : 'Play again';
   if (tourOut && tourOut.title) $('rAgain').textContent = 'Next tournament';
@@ -2800,7 +2842,7 @@ function startEndlessMatch(id) {
   S.career = { id, tier: 5, goal: o.goal, coins: o.coins, pts: o.pts, name: o.name, endless: true, tourName: t.name, roundName: ROUNDS[t.round] }; S.mod = {};
   stageScene(id, o.venue);
   $('nameC').textContent = o.name.split(' ')[0].slice(0, 6);
-  runScene([[id, o.pre]], () => showVs(o, t.name + ' · ' + ROUNDS[t.round], beginCareerMatch));
+  runCutscene([{ loc: 'tunnel', venue: o.venue, title: t.name + ' · ' + ROUNDS[t.round], cast: [id, 'you'], lines: [[id, o.pre]] }], () => showVs(o, t.name + ' · ' + ROUNDS[t.round], beginCareerMatch));
 }
 function curTourLabel(c) { return c.tourName ? c.tourName + ' ' + c.roundName : 'Endless Tour'; }
 function endlessResult(won) {
@@ -2935,7 +2977,7 @@ function startPractice() {
   $('nameC').textContent = 'Bea';
   stageScene(null, 'grass');
   cpu.y = cpu.ty = NET_Y + 1.4;
-  runScene([['bea', "Practice court. I'll feed you balls. No score, no pressure."], ['bea', "Keep one finger down to move. Tap with another finger to swing."]], () => {
+  runCutscene([{ loc: 'lawn', title: 'Practice court', cast: ['bea', 'you'], lines: [['bea', "Practice court. I'll feed you balls. No score, no pressure."], ['bea', "Keep one finger down to move. Tap with another finger to swing."]] }], () => {
     Object.assign(M, { games: [0, 0], pts: [0, 0], server: 1, over: false, winner: -1 });
     S.mode = 'play'; S.paused = false; S.second = false; player.focus = 0;
     hideCall(); setupPoint(); requestWake(); practiceChip();
@@ -3019,10 +3061,303 @@ function startDaily() {
   stageScene('daily', o.venue);
   S.mod = { wind: d.wind, fast: d.mod === 'fast' ? 1.2 : 1, golden: d.mod === 'golden' };
   $('nameC').textContent = o.name.split(' ')[0].slice(0, 6);
-  runScene([['daily', o.pre], ['bea', `Daily challenge. ${MODS[d.mod].name}: ${MODS[d.mod].desc.toLowerCase()}.`]],
+  runCutscene([{ loc: 'locker', title: 'Daily challenge', cast: ['bea', 'you'], lines: [['bea', `${MODS[d.mod].name} today: ${MODS[d.mod].desc.toLowerCase()}.`]] },
+               { loc: 'tunnel', venue: o.venue, cast: ['daily', 'you'], lines: [['daily', o.pre]] }],
     () => showVs(o, 'Daily · ' + MODS[d.mod].name, beginCareerMatch));
 }
 
+// ---------- Cutscenes ----------
+// Story scenes play on their own stage: a 160x120 pixel backdrop for the location, two characters
+// (the one speaking bobs, the other dims), emotes, a title card, and dithered fades between shots.
+const CUTW = 160, CUTH = 120;
+const cutCv = $('cutCv'), cctx = cutCv.getContext('2d');
+cutCv.width = CUTW; cutCv.height = CUTH;
+const COURT_TINT = { park: 'b', clay: 'o', indoor: 'b', grass: 'g', centre: 'g', harbour: 'b', night: 't' };
+const TIER_LOC = { park: 'park', county: 'locker', nationals: 'tunnel', tour: 'lawn', crown: 'clubhouse', harbour: 'harbour', night: 'night' };
+let bctx = null;
+const B = (x, y, w, h, c) => { bctx.fillStyle = PAL[c]; bctx.fillRect(x, y, w, h); };
+const bay = (x, y) => BAYER[(y & 3) * 4 + (x & 3)] / 16;
+function grad(y0, y1, a, b) { for (let y = y0; y < y1; y++) { const t = (y - y0) / Math.max(1, y1 - y0); for (let x = 0; x < CUTW; x++) B(x, y, 1, 1, t > bay(x, y) ? b : a); } }
+function disc(cx, cy, r, c) { for (let j = -r; j <= r; j++) { const w = Math.round(Math.sqrt(r * r - j * j)); B(cx - w, cy + j, 2 * w + 1, 1, c); } }
+function crowdRows(y0, y1, base, dens, seed) {
+  B(0, y0, CUTW, y1 - y0, base);
+  let s2 = seed;
+  const r = () => ((s2 = (s2 * 16807) % 2147483647) / 2147483647);
+  for (let y = y0 + 2; y < y1 - 2; y += 5) for (let x = (y % 2) * 2; x < CUTW; x += 4) {
+    if (r() > dens) continue;
+    bctx.fillStyle = CROWD_SHIRTS[(r() * CROWD_SHIRTS.length) | 0]; bctx.fillRect(x, y + 2, 3, 2);      // these lists hold colours, not keys
+    bctx.fillStyle = CROWD_SKIN[(r() * CROWD_SKIN.length) | 0]; bctx.fillRect(x + 1, y, 2, 2);
+  }
+}
+function lawnStripes(y0, y1, a, b) {
+  for (let y = y0; y < y1; y++) { const band = Math.floor(Math.sqrt((y - y0) * 7)); for (let x = 0; x < CUTW; x++) B(x, y, 1, 1, band % 2 && bay(x, y) < 0.4 ? b : a); }
+}
+function cup(x, y, big) {
+  const k = big ? 2 : 1;
+  B(x, y, 9 * k, 7 * k, 's'); B(x + 2 * k, y, 2 * k, 5 * k, 'w');
+  B(x - 2 * k, y + k, 2 * k, 3 * k, 's'); B(x + 9 * k, y + k, 2 * k, 3 * k, 's');
+  B(x + 3 * k, y + 7 * k, 3 * k, 3 * k, 'o'); B(x + k, y + 10 * k, 7 * k, 2 * k, 'o');
+}
+const BACKDROPS = {
+  lawn() {                                     // Old Meadow at dusk
+    grad(0, 36, 'c', 's'); grad(36, 56, 's', 'o');
+    disc(122, 50, 7, 's');
+    for (let x = 0; x < CUTW; x++) { const top = 52 + Math.round(3 * Math.sin(x * 0.3) + 2 * Math.sin(x * 0.11)); B(x, top, 1, 64 - top, 't'); }
+    for (let r = 0; r < 10; r++) B(36 - r * 3, 26 + r, r * 6 + 1, 1, 'r');
+    B(10, 36, 52, 26, 'w'); B(10, 36, 52, 1, 'M');
+    for (let i = 0; i < 4; i++) { B(14 + i * 12, 42, 7, 7, 'y'); B(17 + i * 12, 42, 1, 7, 'M'); }
+    B(32, 52, 8, 10, 'r');
+    lawnStripes(62, CUTH, 'g', 'l');
+    B(56, 70, 104, 1, 'w');
+  },
+  park() {
+    B(0, 0, CUTW, 56, 'c');
+    [[30, 12, 10, 3], [100, 18, 14, 4], [140, 8, 8, 3]].forEach(([x, y, rx, ry]) => { for (let j = -ry; j <= ry; j++) { const w = Math.round(rx * Math.sqrt(1 - (j / (ry + 0.5)) ** 2)); B(x - w, y + j, 2 * w, 1, 'w'); } });
+    for (let i = 0; i < 9; i++) { const x = i * 20 + 4; disc(x, 40 + (i % 2) * 4, 12, 'g'); disc(x + 3, 44 + (i % 2) * 4, 7, 't'); }
+    B(0, 56, CUTW, 26, 'b'); B(0, 66, CUTW, 1, 'w');
+    for (let y = 48; y < 82; y++) for (let x = 0; x < CUTW; x++) if ((x + y) % 6 === 0 || (x - y + 600) % 6 === 0) B(x, y, 1, 1, 'm');
+    B(0, 82, CUTW, CUTH - 82, 'g');
+    for (let y = 82; y < CUTH; y++) for (let x = 0; x < CUTW; x++) if (bay(x, y) < 0.08) B(x, y, 1, 1, 'l');
+    B(30, 96, 100, 4, 'o'); B(30, 100, 100, 1, 'r'); B(30, 90, 100, 3, 'o'); B(34, 101, 3, 10, 'r'); B(123, 101, 3, 10, 'r');
+  },
+  locker() {
+    B(0, 0, CUTW, 104, 'M');
+    for (let y = 0; y < 104; y += 8) B(0, y, CUTW, 1, 'm');
+    B(20, 3, 120, 3, 'y');
+    for (let i = 0; i < 8; i++) {
+      const x = 3 + i * 20;
+      B(x, 16, 18, 70, 'v'); B(x, 16, 18, 1, 'c'); B(x, 16, 1, 70, 'c');
+      for (let v = 0; v < 3; v++) B(x + 4, 22 + v * 3, 10, 1, 'k');
+      B(x + 14, 50, 2, 5, 's');
+    }
+    B(0, 86, CUTW, 18, 'n');
+    B(8, 92, 144, 5, 'o'); B(8, 97, 144, 1, 'r');
+    B(0, 104, CUTW, CUTH - 104, 'k');
+    B(40, 88, 18, 4, 'w');                       // a towel on the bench
+  },
+  tunnel(v) {
+    B(0, 0, CUTW, CUTH, 'k');
+    const ax = 58, aw = 44, ay = 26, ah = 50;
+    crowdRows(ay, ay + 20, 'n', 0.8, 11);
+    B(ax - 30, ay + 20, aw + 60, ah - 20, COURT_TINT[v] || 'g');
+    B(ax - 30, ay + 34, aw + 60, 1, 'w');
+    B(0, ay, ax, ah, 'k'); B(ax + aw, ay, CUTW - ax - aw, ah, 'k');
+    B(0, 0, CUTW, ay, 'n'); B(0, ay + ah, CUTW, CUTH - ay - ah, 'v');         // ceiling and floor
+    for (let y = 0; y < ay; y++) { const k = Math.round((ay - y) * ax / ay); B(ax - k, y, 1, 1, 'M'); B(ax + aw + k - 1, y, 1, 1, 'M'); }
+    for (let y = ay + ah; y < CUTH; y++) { const k = Math.round((y - ay - ah) * ax / (CUTH - ay - ah)); B(ax - k, y, 1, 1, 'M'); B(ax + aw + k - 1, y, 1, 1, 'M'); }
+    for (let y = ay - 4; y < ay + ah + 4; y++) for (let x = ax - 4; x < ax + aw + 4; x++) {
+      const inside = x >= ax && x < ax + aw && y >= ay && y < ay + ah;
+      if (!inside && bay(x, y) < 0.5) B(x, y, 1, 1, 'y');
+    }
+    for (let i = 0; i < 6; i++) { B(0, ay + ah + 8 + i * 7, CUTW, 1, 'n'); }
+    B(76, ay + ah + 4, 8, CUTH, 'M');
+    for (let i = 0; i < 4; i++) { B(6 + i * 6, 10 + i * 2, 2, 2, 'y'); B(CUTW - 8 - i * 6, 10 + i * 2, 2, 2, 'y'); }
+  },
+  clubhouse() {                                // Bea's office at Old Meadow
+    B(0, 0, CUTW, 100, 'o');
+    for (let y = 0; y < 100; y += 6) B(0, y, CUTW, 1, 'r');
+    for (let y = 14; y < 62; y++) for (let x = 98; x < 152; x++) {           // window onto the lawns
+      if (y < 36) B(x, y, 1, 1, (y - 14) / 22 > bay(x, y) ? 's' : 'c');
+      else B(x, y, 1, 1, Math.floor(Math.sqrt((y - 36) * 7)) % 2 && bay(x, y) < 0.4 ? 'l' : 'g');
+    }
+    B(96, 12, 58, 2, 'r'); B(96, 62, 58, 2, 'r'); B(96, 12, 2, 52, 'r'); B(152, 12, 2, 52, 'r'); B(124, 12, 2, 52, 'r'); B(96, 36, 58, 2, 'r');
+    B(6, 50, 80, 3, 'r');                                                   // trophy shelf
+    cup(10, 38); cup(30, 38); cup(52, 38);
+    if (CAREER && CAREER.best.marla) { B(70, 42, 7, 8, 'w'); B(77, 44, 2, 4, 'w'); }     // Marla's mug
+    B(14, 10, 32, 22, 'M'); B(16, 12, 28, 18, 'c'); B(16, 24, 28, 6, 'g'); B(24, 16, 3, 8, 'w'); B(32, 16, 3, 8, 'w');   // an old photo
+    B(0, 100, CUTW, CUTH - 100, 'r'); for (let x = 0; x < CUTW; x += 12) B(x, 100, 1, 20, 'h');
+  },
+  net(v) {
+    crowdRows(0, 40, 'n', 0.85, 23);
+    B(0, 40, CUTW, 8, 'v'); B(0, 43, CUTW, 1, 'M');
+    B(0, 48, CUTW, CUTH - 48, COURT_TINT[v] || 'g');
+    if ((COURT_TINT[v] || 'g') === 'g') for (let y = 48; y < CUTH; y++) for (let x = 0; x < CUTW; x++) if (Math.floor((y - 48) / 10) % 2 && bay(x, y) < 0.15) B(x, y, 1, 1, 'l');
+    B(0, 62, CUTW, 1, 'w');
+    for (let y = 84; y < CUTH; y++) for (let x = 0; x < CUTW; x++) if ((x + y) % 2 === 0) B(x, y, 1, 1, 'k');
+    B(0, 81, CUTW, 3, 'w'); B(2, 78, 3, CUTH, 'k'); B(CUTW - 5, 78, 3, CUTH, 'k');
+  },
+  press() {
+    B(0, 0, CUTW, 92, 'g');
+    for (let y = 0; y < 92; y += 12) for (let x = ((y / 12) % 2) * 8; x < CUTW; x += 16) { B(x + 4, y + 4, 8, 4, 'h'); B(x + 7, y + 5, 2, 2, 's'); }
+    B(0, 88, CUTW, 4, 'v'); B(0, 92, CUTW, CUTH - 92, 'n');
+    for (const mx of [62, 98]) { B(mx, 74, 2, 16, 'k'); B(mx - 2, 70, 6, 5, 'M'); }
+    B(80, 82, 4, 6, 'c');
+  },
+  ceremony(v) {
+    BACKDROPS.net(v || 'centre');
+    B(56, 62, 48, 60, 'r'); B(56, 62, 2, 60, 'o'); B(102, 62, 2, 60, 'o');
+    cup(70, 18, true);
+  },
+  night() {
+    B(0, 0, CUTW, 60, 'k');
+    let s2 = 5; const r = () => ((s2 = (s2 * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < 40; i++) B((r() * CUTW) | 0, (r() * 40) | 0, 1, 1, r() < 0.3 ? 'y' : 'w');
+    for (const x of [18, 140]) {
+      B(x, 14, 2, 46, 'M'); B(x - 7, 8, 16, 6, 'y'); B(x - 7, 8, 16, 1, 'w');
+      for (let y = 14; y < 34; y++) for (let xx = x - 14; xx < x + 16; xx++) if (bay(xx, y) < 0.12 * (1 - (y - 14) / 20)) B(xx, y, 1, 1, 'y');
+    }
+    crowdRows(46, 62, 'n', 0.5, 31);
+    lawnStripes(62, CUTH, 't', 'g');
+    B(30, 72, 100, 1, 'w');
+  },
+  harbour() {
+    grad(0, 28, 'c', 's'); grad(28, 50, 's', 'o');
+    disc(110, 44, 9, 's');
+    B(0, 50, CUTW, 40, 'b');
+    for (let y = 50; y < 90; y++) for (let x = 0; x < CUTW; x++) { const b2 = bay(x, y); if (b2 < 0.06) B(x, y, 1, 1, 'y'); else if (b2 < 0.18) B(x, y, 1, 1, 'c'); }
+    for (const [x, y] of [[24, 60], [70, 56], [128, 64]]) { B(x - 8, y, 16, 3, 'w'); B(x - 6, y + 3, 12, 1, 'M'); B(x, y - 12, 1, 12, 'M'); for (let i = 0; i < 9; i++) B(x + 1, y - 11 + i, Math.round(i * 0.7), 1, 'w'); }
+    B(0, 90, CUTW, CUTH - 90, 'o'); for (let y = 92; y < CUTH; y += 5) B(0, y, CUTW, 1, 'r');
+  },
+};
+const backdropCache = {};
+function backdrop(loc, venue) {
+  const key = loc + ':' + (venue || '') + ':' + (CAREER && CAREER.best.marla ? 1 : 0);
+  if (backdropCache[key]) return backdropCache[key];
+  const c = document.createElement('canvas'); c.width = CUTW; c.height = CUTH;
+  bctx = c.getContext('2d');
+  (BACKDROPS[loc] || BACKDROPS.lawn)(venue);
+  return (backdropCache[key] = c);
+}
+// characters: transparent-background busts, plus a dimmed copy for whoever isn't speaking
+const bustCache = {};
+function bust(who) {
+  const look = portraitOf(who);
+  const key = who + JSON.stringify(look);
+  if (bustCache[key]) return bustCache[key];
+  const c = document.createElement('canvas'); drawPortrait(c, { ...look, bg: null });
+  const d = document.createElement('canvas'); d.width = c.width; d.height = c.height;
+  const dx = d.getContext('2d'); dx.drawImage(c, 0, 0);
+  const img = dx.getImageData(0, 0, d.width, d.height), px = img.data, nn = hex(PAL.n);
+  for (let y = 0; y < d.height; y++) for (let x = 0; x < d.width; x++) {
+    const o = (y * d.width + x) * 4;
+    if (px[o + 3] && bay(x, y) < 0.5) { px[o] = nn[0]; px[o + 1] = nn[1]; px[o + 2] = nn[2]; }
+  }
+  dx.putImageData(img, 0, 0);
+  return (bustCache[key] = { on: c, dim: d });
+}
+const EMOTES = {
+  '!': [[4, 2, 1, 4], [4, 7, 1, 1]],
+  '?': [[3, 2, 3, 1], [6, 3, 1, 2], [4, 5, 2, 1], [4, 7, 1, 1]],
+  '...': [[2, 6, 1, 1], [4, 6, 1, 1], [6, 6, 1, 1]],
+  '<3': [[2, 3, 2, 2], [5, 3, 2, 2], [2, 4, 5, 2], [3, 6, 3, 1], [4, 7, 1, 1]],
+};
+let CUT = null;
+function fitCut() {
+  const W2 = window.innerWidth, H2 = window.innerHeight;
+  const sc = Math.max(1, Math.floor(Math.min((W2 - 24) / CUTW, (H2 - 270) / CUTH)));
+  cutCv.style.width = CUTW * sc + 'px'; cutCv.style.height = CUTH * sc + 'px';
+  document.querySelector('#cut .cutbox').style.width = Math.max(300, CUTW * sc) + 'px';
+}
+window.addEventListener('resize', () => { if (CUT) fitCut(); });
+function runCutscene(shots, done) {
+  CUT = { shots, si: -1, li: -1, done, fade: 1, fadeDir: -1, enter: 0, t0: performance.now(), shown: 0, full: '', timer: 0, after: null, last: performance.now() };
+  S.mode = 'story';
+  hideCall(); setHint();
+  show('cut', true); fitCut();
+  nextShot();
+  requestAnimationFrame(cutFrame);
+}
+function nextShot() {
+  CUT.si++;
+  if (CUT.si >= CUT.shots.length) { endCut(); return; }
+  const sh = CUT.shots[CUT.si];
+  CUT.bg = backdrop(sh.loc, sh.venue);
+  CUT.li = -1; CUT.enter = 0; CUT.fade = 1; CUT.fadeDir = -1; CUT.after = null;
+  CUT.conf = sh.confetti ? Array.from({ length: 70 }, (_, i) => ({ x: Math.random() * CUTW, y: -Math.random() * CUTH, v: 12 + Math.random() * 18, c: PAL[['l', 's', 'o', 'c', 'y', 'w', 'r'][i % 7]] })) : null;
+  if (sh.confetti) { roar(0.9); sfx.fanfare(); }
+  const tt = $('cutTitle');
+  tt.textContent = sh.title || ''; tt.classList.toggle('show', !!sh.title);
+  clearTimeout(CUT.titleT); CUT.titleT = setTimeout(() => tt.classList.remove('show'), 2200);
+  cutLine();
+}
+function cutLine() {
+  const sh = CUT.shots[CUT.si];
+  clearInterval(CUT.timer);
+  CUT.li++;
+  if (CUT.li >= sh.lines.length) { CUT.fadeDir = 1; CUT.after = nextShot; return; }
+  const [who, text, special] = sh.lines[CUT.li];
+  CUT.speaker = who; CUT.emote = EMOTES[special] ? special : null; CUT.emoteT = performance.now();
+  $('cutName').textContent = who === 'narr' ? '' : who === 'you' ? (CAREER ? CAREER.name : 'You') : who === 'bea' ? CAST.bea.name : OPPS[who].name;
+  $('cutText').classList.toggle('narr', who === 'narr');
+  CUT.full = fillText(text); CUT.shown = 0;
+  $('cutForm').hidden = special !== 'name'; $('cutMore').hidden = special === 'name';
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce) { CUT.shown = CUT.full.length; $('cutText').textContent = CUT.full; }
+  else {
+    $('cutText').textContent = '';
+    const me = CUT;
+    me.timer = setInterval(() => {
+      if (CUT !== me) { clearInterval(me.timer); return; }
+      me.shown = Math.min(me.full.length, me.shown + 2);
+      $('cutText').textContent = me.full.slice(0, me.shown);
+      if (me.shown % 6 === 0 && who !== 'narr') tone(who === 'bea' ? 520 : who === 'you' ? 760 : 640 + Math.random() * 120, 0.02, 0.02);
+      if (me.shown >= me.full.length) clearInterval(me.timer);
+    }, 28);
+  }
+  if (special === 'name') { $('cutInput').value = CAREER && CAREER.name !== 'Rookie' ? CAREER.name : ''; setTimeout(() => $('cutInput').focus(), 50); }
+  if (CUT.emote) tone(CUT.emote === '!' ? 880 : 520, 0.08, 0.05, 'square');
+}
+function advanceCut(e) {
+  if (!CUT || CUT.after || CUT.fade > 0.05) return;
+  if (e && e.target && e.target.closest && e.target.closest('#cutForm')) return;
+  if (!$('cutForm').hidden) return;
+  if (CUT.shown < CUT.full.length) { clearInterval(CUT.timer); CUT.shown = CUT.full.length; $('cutText').textContent = CUT.full; return; }
+  cutLine();
+}
+function endCut() {
+  const d = CUT.done;
+  clearInterval(CUT.timer); clearTimeout(CUT.titleT);
+  CUT = null;
+  show('cut', false);
+  if (d) d();
+}
+function cutFrame(now) {
+  if (!CUT) return;
+  const dt = Math.min(0.05, (now - CUT.last) / 1000); CUT.last = now;
+  if (CUT.fadeDir) {
+    CUT.fade = clamp(CUT.fade + CUT.fadeDir * dt / 0.3, 0, 1);
+    if (CUT.fadeDir < 0 && CUT.fade === 0) CUT.fadeDir = 0;
+    if (CUT.fadeDir > 0 && CUT.fade === 1) { const a = CUT.after; CUT.after = null; CUT.fadeDir = 0; if (a) a(); if (!CUT) return; }
+  }
+  CUT.enter += dt;
+  cctx.drawImage(CUT.bg, 0, 0);
+  const sh = CUT.shots[CUT.si];
+  if (sh) (sh.cast || []).forEach((who, i) => {
+    if (!who) return;
+    const b = bust(who), talking = CUT.speaker === who;
+    const slide = Math.round((1 - Math.min(1, CUT.enter / 0.35)) * 70) * (i === 0 ? -1 : 1);
+    const bob = talking && CUT.shown < CUT.full.length ? (Math.floor(now / 140) % 2) : 0;
+    const x = (i === 0 ? 8 : CUTW - 56) + slide, y = CUTH - 48 - bob;
+    cctx.drawImage(talking || CUT.speaker === 'narr' ? b.on : b.dim, x, y, 48, 48);
+    if (talking && CUT.emote && now - CUT.emoteT < 1600) {
+      const ex = x + (i === 0 ? 34 : 4), ey = y - 12;
+      cctx.fillStyle = PAL.k; cctx.fillRect(ex - 1, ey - 1, 11, 11);
+      cctx.fillStyle = PAL.w; cctx.fillRect(ex, ey, 9, 9);
+      cctx.fillStyle = CUT.emote === '<3' ? PAL.r : PAL.k;
+      EMOTES[CUT.emote].forEach(([a, b2, w, h]) => cctx.fillRect(ex + a, ey + b2, w, h));
+    }
+  });
+  if (CUT.conf) for (const q of CUT.conf) {                // ceremony confetti
+    q.y += q.v * dt; q.x += Math.sin(q.y * 0.2) * 0.3;
+    if (q.y > CUTH) { q.y = -2; q.x = Math.random() * CUTW; }
+    cctx.fillStyle = q.c; cctx.fillRect(Math.round(q.x), Math.round(q.y), 1, 2);
+  }
+  if (CUT.fade > 0) {                                     // pixel fade through dark
+    cctx.fillStyle = PAL.k;
+    for (let y = 0; y < CUTH; y++) for (let x = 0; x < CUTW; x++) if (bay(x, y) < CUT.fade) cctx.fillRect(x, y, 1, 1);
+  }
+  requestAnimationFrame(cutFrame);
+}
+
+$('cut').addEventListener('click', advanceCut);
+$('cutForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const v = $('cutInput').value.replace(/[^\p{L}\p{N} '\-]/gu, '').trim().slice(0, 12);
+  CAREER.name = v || 'Rookie';
+  saveCareer();
+  cutLine();
+});
+window.addEventListener('keydown', e => { if (CUT && (e.key === 'Enter' || e.key === ' ') && $('cutForm').hidden) { e.preventDefault(); advanceCut(); } });
 $('careerBtn').addEventListener('click', () => { initAudio(); openCareer(); });
 document.addEventListener('click', e => { if (e.target.closest && e.target.closest('button')) tone(880, 0.03, 0.03, 'square'); }, true);
 $('careerBack').addEventListener('click', () => { show('career', false); S.mode = 'menu'; show('menu', true); });

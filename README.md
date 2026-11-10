@@ -40,6 +40,8 @@ You're a ball kid at Old Meadow. Coach Bea, who keeps the lawns and once played 
 | Season Two: Harbour Masters | Seaside hard court, sea wind | First to 3, win by 2 | Mara Quinn, Dax Okafor, Silas Crowe (Victor's protégé) |
 | Season Two: The Night Final | Old Meadow under floodlights | First to 4, win by 2 | Yuki Tanaka, Silas Crowe (final) |
 
+The story plays out in pixel-art cutscenes, away from the court: the Old Meadow lawns at dusk, the park bench, locker rooms, the players' tunnel, Bea's clubhouse office, handshakes at the net, a press conference, trophy ceremonies, the harbour at sunset and Old Meadow under floodlights. Before each match you get Bea's advice in the locker room and your opponent's words in the tunnel. After it, you shake hands at the net or talk it over with Bea.
+
 Each opponent has their own look, portrait, lines and playing style: pushers, lobbers, big servers, grinders, net rushers, drop-shot artists and more.
 
 The loop:
