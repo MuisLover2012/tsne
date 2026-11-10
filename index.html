@@ -1237,7 +1237,8 @@ function cpuHit(dx) {
   // pressure: stretched wide, made to run, or facing pace makes errors and short replies more likely
   const spd = Math.hypot(ball.vx, ball.vy);
   const stretch = Math.min(1, Math.abs(dx) / C_REACH);
-  const pressure = 0.1 * stretch * stretch + Math.max(0, spd - 16) * 0.012 + Math.max(0, (cpu.runDist || 0) - 3) * 0.03 + (ball.power ? 0.14 : 0);
+  const fatigue = Math.max(0, (S.rally || 0) - 6) * 0.015;          // long rallies wear everyone down
+  const pressure = 0.1 * stretch * stretch + Math.max(0, spd - 16) * 0.012 + Math.max(0, (cpu.runDist || 0) - 3) * 0.03 + (ball.power ? 0.14 : 0) + fatigue;
   ball.isServe = false;
   if (Math.random() < d.err + pressure) {
     if (Math.random() < 0.45) { launch('c', rand(-HW + 0.5, HW - 0.5), NET_Y - 0.3, d.pace, -99); return; }
@@ -1763,7 +1764,7 @@ const OPPS = {
     tip: "Anton hasn't missed on purpose in ten years. Chain your Perfects and unleash Power shots.",
     win: "...Well played.",
     after: [['bea', "Anton Grey hasn't said two words in public in ten years. You got two. That's a compliment."]] },
-  victor: { name: 'Victor Hale', tag: 'The champion', boss: true, ai: { speed: 6.9, react: 0.09, miss: 0.1, err: 0.035, pace: 21, serve: 24, aim: 0.8, drop: 0.12, net: 0.3, lob: 0.6, lobBase: 0.08, edge: true }, pts: 400,
+  victor: { name: 'Victor Hale', tag: 'The champion', boss: true, ai: { speed: 6.6, react: 0.11, miss: 0.14, err: 0.05, pace: 19.5, serve: 21, aim: 0.65, drop: 0.1, net: 0.2, lob: 0.5, lobBase: 0.05, edge: true }, pts: 400,
     look: { skin: ['s', 'o', 'r'], hair: ['w', 'm'], style: 'swoop', shirt: ['w', 'm', 'M'], trim: 's', racket: 's', bg: 's' },
     goal: { type: 'love', text: 'Win a game without dropping a point' },
     pre: "So you're Bea's student. I wondered when she'd find one. I beat her here, you know. Her last final.",
@@ -1798,9 +1799,9 @@ const TIERS = [
   { id: 'nationals', name: 'National Indoors', venue: 'indoor', rules: { toWin: 3, by: 2 }, coins: 90, marker: true, opps: ['kenji', 'sasha', 'theo'],
     blurb: 'Fast indoor courts under the lights.',
     intro: [['bea', "Nationals, indoors. No wind, no sun, no excuses."], ['bea', "The lights make the ball look faster than it is. Trust your timing."]] },
-  { id: 'tour', name: 'The Lawn Series', venue: 'grass', rules: { toWin: 4, by: 2 }, coins: 120, marker: false, opps: ['lucia', 'odette', 'rex2'],
+  { id: 'tour', name: 'The Lawn Series', venue: 'grass', rules: { toWin: 3, by: 2 }, coins: 120, marker: false, opps: ['lucia', 'odette', 'rex2'],
     blurb: 'Grass at last. Full sets, no training rings.',
-    intro: [['bea', "The Lawn Series. Grass, like home."], ['bea', "Real sets now, first to four games. And no more training rings at your feet. You don't need them."]] },
+    intro: [['bea', "The Lawn Series. Grass, like home."], ['bea', "Win by two games now. And no more training rings at your feet. You don't need them."]] },
   { id: 'crown', name: 'The Meadow Crown', venue: 'centre', rules: { toWin: 4, by: 2 }, coins: 160, marker: false, opps: ['grey', 'victor'],
     blurb: 'Centre Court, Old Meadow. The final.',
     intro: [['bea', "Old Meadow. Our lawns, {name}. Centre Court. I painted these lines myself this morning."], ['bea', "Don't look at the crowd. Look at the ball. It's the same ball you've been catching for three summers."]] },

@@ -35,7 +35,7 @@ You're a ball kid at Old Meadow. Coach Bea, who keeps the lawns and once played 
 | Park Courts | Blue hard court, trees | First to 2 games | Pip Larkin, Toby Swift, Marla Stone (boss) |
 | County Clay | Red clay, slow and high | First to 3 | Hugo Brandt, Ines Rojo, Rex Vantage (rival) |
 | National Indoors | Fast indoor carpet | First to 3, win by 2 | Kenji Mori, Sasha Volkov, Theo Brant |
-| The Lawn Series | Grass, no training rings | First to 4, win by 2 | Lucia Ferro, Odette Blanc, Rex Vantage |
+| The Lawn Series | Grass, no training rings | First to 3, win by 2 | Lucia Ferro, Odette Blanc, Rex Vantage |
 | The Meadow Crown | Centre Court | First to 4, win by 2 | Anton Grey, Victor Hale (final) |
 
 Each opponent has their own look, portrait, lines and playing style: pushers, lobbers, big servers, grinders, net rushers, drop-shot artists and more.
