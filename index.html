@@ -297,6 +297,9 @@ body {
 .stars li.on { color: var(--panel-ink); }
 .stars .star { font-size: 24px; width: 1.2em; text-align: center; }
 .stars li.on .star { color: var(--ball); }
+.stars li.pop { animation: starpop .3s steps(3) both; }
+@keyframes starpop { from { transform: scale(2.2); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .stars li.pop { animation: none; } }
 .rewards { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 16px; }
 .rewards dt { font-family: var(--label); font-size: 12px; text-transform: uppercase; color: var(--panel-dim); padding-top: 3px; }
 .rewards dd { margin: 0; font-weight: 700; }
@@ -449,6 +452,7 @@ body {
       <dt>Coins</dt><dd id="rCoins">+0</dd>
       <dt>Ranking</dt><dd id="rRank">#900</dd>
       <dt>Longest rally</dt><dd id="rLongest">0</dd>
+      <dt>Perfect shots</dt><dd id="rPerfects">0</dd>
     </dl>
     <div class="actions">
       <button type="button" class="btn primary" id="rContinue">Continue</button>
@@ -1219,6 +1223,8 @@ function playerHit(dx, e) {
     tx = open * (0.4 + 2.8 * q * q) + side * e * 2.0 + rand(-1, 1) * (0.3 + 0.9 * (1 - q));
     if (hold >= TOUCH_HOLD) {
       ty = NET_Y + rand(1.6, 3.2); pace = 9; tx *= 0.7; clear = 0.15; if (q > 0.6) tag = 'Drop shot';
+    } else if (hold >= 0.32 && cpu.y < NET_Y + 5.5 && player.y < NET_Y - 4.5) {     // they're at the net: float it over them
+      ty = L - rand(0.8, 3) + (1 - q) * rand(-1, 2); pace = 10; clear = 3.2; tx *= 0.6; tag = q > 0.6 ? 'Lob' : tag;
     } else if (player.y > NET_Y - 4.5 && ball.z > 1.6) {
       ty = rand(L - 7, L - 3); pace = (16 + 10 * power) * PS.power; clear = 0.1; if (q > 0.6) tag = 'Smash';
     } else {
@@ -1244,7 +1250,7 @@ function playerHit(dx, e) {
   ball.power = pshot;
   if (pshot) { cpu.react += 0.15; S.hitstop = 0.12; S.shake = 1.4; burst(ball.x, ball.y, ball.z, 12, ['s', 'o', 'y'], 1.6); roar(0.9); }
   else if (q > 0.6) { S.hitstop = 0.05; burst(ball.x, ball.y, ball.z, 4, ['y', 'w'], 0.8); }
-  showTag(tag, tag === 'Perfect' || tag === 'Strong' || tag === 'Smash' || tag === 'Drop shot' || tag === 'Power shot');
+  showTag(tag, tag === 'Perfect' || tag === 'Strong' || tag === 'Smash' || tag === 'Drop shot' || tag === 'Power shot' || tag === 'Lob');
   S.tips++;
 }
 function cpuHit(dx) {
@@ -1491,6 +1497,23 @@ function sayOpp(won) {
   elb.classList.add('show'); clearTimeout(bubbleT);
   bubbleT = setTimeout(() => elb.classList.remove('show'), 1300);
 }
+let murmur = null;
+function updateMurmur() {
+  const want = AC && S.sound && S.mode === 'play' && VEN.crowd >= 0.5 && !document.hidden;
+  try {
+    if (want && !murmur) {
+      const len = AC.sampleRate * 2, buf = AC.createBuffer(1, len, AC.sampleRate), d = buf.getChannelData(0);
+      let v = 0;
+      for (let i = 0; i < len; i++) { v = v * 0.97 + (Math.random() * 2 - 1) * 0.03; d[i] = v * 6; }
+      const src = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
+      src.buffer = buf; src.loop = true; f.type = 'lowpass'; f.frequency.value = 500; g.gain.value = 0.02 * VEN.crowd;
+      src.connect(f).connect(g).connect(AC.destination); src.start();
+      murmur = { src, g };
+    } else if (!want && murmur) { murmur.src.stop(); murmur = null; }
+    if (murmur) murmur.g.gain.value = (S.state === 'rally' ? 0.008 : 0.02) * VEN.crowd;     // the crowd hushes during points
+  } catch (e) { murmur = null; }
+}
+setInterval(updateMurmur, 500);
 function renderFocus() {
   const el = $('focus');
   el.hidden = S.mode !== 'play';
@@ -1800,7 +1823,7 @@ const OPPS = {
     look: { skin: ['s', 'o', 'r'], hair: ['n', 'k'], style: 'short', shirt: ['w', 'm', 'M'], trim: 'r', racket: 'r', bg: 'c' },
     goal: { type: 'winners', n: 3, text: 'Hit 3 winners' },
     pre: "I'll meet you at the net. Every point. Try to get it past me.",
-    tip: "When Kenji rushes in, swing early or late to send it wide past him.",
+    tip: "When Kenji rushes in, swing early or late to pass him, or hold a little longer to lob over him.",
     win: "Your passing shots... I'll be seeing those in my sleep." },
   sasha: { name: 'Sasha Volkov', tag: 'Touch artist', ai: { speed: 5.3, react: 0.2, miss: 0.28, err: 0.08, pace: 15, serve: 17, aim: 0.55, drop: 0.35 }, pts: 110,
     look: { skin: ['s', 'o', 'r'], hair: ['w', 'm'], style: 'bun', shirt: ['c', 'b', 'v'], trim: 'y', racket: 'y', bg: 'v' },
@@ -1825,7 +1848,7 @@ const OPPS = {
     look: { skin: ['s', 'o', 'r'], hair: ['s', 'o'], style: 'bob', shirt: ['w', 'm', 'M'], trim: 'c', racket: 'c', bg: 'b' },
     goal: { type: 'break', text: 'Win a game on her serve' },
     pre: "Serve, volley, shake hands. I like my matches short.",
-    tip: "Odette charges in behind every serve. Return early or late to go wide of her.",
+    tip: "Odette charges in behind every serve. Pass her wide, or hold a little longer to lob her.",
     win: "That was not short. Or fun. Fine, it was a little fun." },
   rex2: { name: 'Rex Vantage', tag: 'The rival, again', boss: true, ai: { speed: 6.2, react: 0.13, miss: 0.18, err: 0.06, pace: 20, serve: 21, aim: 0.7, drop: 0.12, net: 0.25 }, pts: 200,
     look: { skin: ['s', 'o', 'r'], hair: ['s', 'o'], style: 'swoop', shirt: ['w', 'm', 'M'], trim: 'r', racket: 's', bg: 'h' },
@@ -1912,6 +1935,7 @@ const TIPS = [
   "Clay bounces high and slow. Indoor courts skid fast. Grass stays low.",
   "Long rallies earn bonus coins, and the crowd loves them.",
   "Step forward to the net after a strong shot. A volley ends the point fast.",
+  "Opponent at the net? Hold a little longer than a normal swing to float a lob over their head.",
 ];
 const UPGRADES = [
   { key: 'speed', name: 'Speed', desc: 'Run faster' },
@@ -2300,10 +2324,19 @@ function careerResults() {
   $('rScore').textContent = `${M.games[0]}–${M.games[1]}`;
   const labels = ['Win the match', c.goal.text, 'Win by 2+ games'];
   const ul = $('rStars'); ul.replaceChildren();
-  labels.forEach((lab, i) => { const li = el('li', stars3[i] ? 'on' : ''); li.append(el('span', 'star', stars3[i] ? '★' : '☆'), el('span', null, lab)); ul.append(li); });
-  $('rCoins').textContent = '+' + coins;
+  labels.forEach((lab, i) => {
+    const li = el('li', stars3[i] ? 'on pop' : '');
+    li.style.animationDelay = (0.35 + i * 0.35) + 's';
+    li.append(el('span', 'star', stars3[i] ? '★' : '☆'), el('span', null, lab)); ul.append(li);
+    if (stars3[i]) tone(660 + i * 220, 0.12, 0.06, 'square', 0.35 + i * 0.35);
+  });
+  // coins count up
+  let shown = 0; const target = coins, t0 = performance.now();
+  const tick = () => { const k = Math.min(1, (performance.now() - t0) / 900); shown = Math.round(target * k); $('rCoins').textContent = '+' + shown; if (k < 1) requestAnimationFrame(tick); };
+  $('rCoins').textContent = '+0'; requestAnimationFrame(tick);
   $('rRank').textContent = after < before ? `#${before} → #${after}` : `#${after}`;
   $('rLongest').textContent = MS.rallyMax + ' shots';
+  $('rPerfects').textContent = MS.perfects + (MS.powers ? ` · ${MS.powers} Power shot${MS.powers > 1 ? 's' : ''}` : '') + (MS.aces ? ` · ${MS.aces} ace${MS.aces > 1 ? 's' : ''}` : '');
   show('results', true);
   if (won) { S.cheer = 4; sfx.win(); confetti(OPPS[c.id] && OPPS[c.id].boss ? 140 : 50); }
   $('rContinue').onclick = () => {
