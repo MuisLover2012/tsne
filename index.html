@@ -1047,7 +1047,7 @@ function shoot(px, py, pz, tx, ty, speed, clear) {
 function predictLand() {
   const a = 0.5 * G, b = ball.vz, c = ball.z;
   const t = (b + Math.sqrt(b * b + 4 * a * c)) / (2 * a);
-  return { x: ball.x + ball.vx * t, y: ball.y + ball.vy * t };
+  return { x: ball.x + ball.vx * t + (ball.isServe ? 0 : 0.5 * (S.mod.wind || 0) * t * t), y: ball.y + ball.vy * t };   // wind drifts it sideways
 }
 function isIn(x, y, side) {
   if (Math.abs(x) > HW + 0.05) return false;
@@ -1072,7 +1072,7 @@ function planIntercept() {
   const home = cpu.home || L + 0.8, dt = 1 / 120, volley = home < NET_Y + 5;
   let best = null;
   for (let i = 0; i < 720; i++) {
-    b.vz -= G * dt; if (S.mod.wind && b.z > 0.05) b.vx += S.mod.wind * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+    b.vz -= G * dt; if (S.mod.wind && b.z > 0.05 && !ball.isServe) b.vx += S.mod.wind * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
     if (b.z <= 0 && b.vz < 0) { b.z = 0; b.vz = -b.vz * SURF.bounce; b.vx *= SURF.fric; b.vy *= SURF.fric; b.n++; if (b.n >= 2) break; }
     if (volley && b.y >= home - 0.3 && b.z > 0.2 && b.z < 2.5) { best = { x: b.x, y: b.y }; break; }   // volley it
     if (b.n === 1 && b.z > 0.25 && b.z < 2.4) { best = { x: b.x, y: b.y }; if (b.y >= home) break; }
@@ -1426,7 +1426,7 @@ function physics(dt) {
     return;
   }
   ball.vz -= G * dt;
-  if (S.mod.wind && ball.z > 0.05) ball.vx += S.mod.wind * dt;
+  if (S.mod.wind && ball.z > 0.05 && !ball.isServe) ball.vx += S.mod.wind * dt;   // wind spares the serve
   ball.x += ball.vx * dt; ball.y += ball.vy * dt; ball.z += ball.vz * dt;
   if ((prevY - NET_Y) * (ball.y - NET_Y) < 0 && Math.abs(ball.x) < POST_X && ball.z < netHeight(ball.x)) {
     ball.y = prevY; ball.vy *= -0.12; ball.vx *= 0.3; ball.vz = Math.min(ball.vz, 0);
@@ -2527,7 +2527,7 @@ function startCareerMatch(id) {
   setOpponent({ ...o.ai, marker: t.marker, look: o.look });
   PS = careerStats(); RULES = { ...t.rules };
   S.career = { id, tier: ti, goal: o.goal, coins: t.coins, pts: o.pts, name: o.name };
-  S.mod = t.venue === 'harbour' ? { wind: (Math.random() < 0.5 ? -1 : 1) * 1.4 } : {};
+  S.mod = t.venue === 'harbour' ? { wind: (Math.random() < 0.5 ? -1 : 1) * 0.6 } : {};
   stageScene(id, t.venue);
   $('nameC').textContent = o.name.split(' ')[0].slice(0, 6);
   runScene([[id, o.pre], ['bea', o.tip]], () => showVs(o, t.name, beginCareerMatch));
@@ -2986,7 +2986,7 @@ function dailySpec() {
   const o = genEndless(key, 1 + tier * 2);
   o.tag = o.tag.replace(/ · Level \d+/, '');
   const modKeys = Object.keys(MODS), mod = modKeys[key % modKeys.length];
-  const wind = mod === 'wind' ? ((key % 2) ? 1 : -1) * (1.6 + (key % 5) * 0.3) : 0;
+  const wind = mod === 'wind' ? ((key % 2) ? 1 : -1) * (0.7 + (key % 5) * 0.12) : 0;
   return { o, mod, wind, tier, coins: 150 + 30 * tier };
 }
 function renderDaily(body) {
