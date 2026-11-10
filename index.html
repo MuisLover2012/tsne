@@ -247,10 +247,13 @@ body {
 .pcard { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; }
 .pmid { min-width: 0; }
 .rank { font-family: var(--display); font-weight: 700; font-size: 40px; line-height: 1; color: var(--ball); text-shadow: 3px 3px 0 var(--ink); }
+.rank.top { color: #ffcd75; }
 .pname { font-family: var(--label); font-size: 13px; text-transform: uppercase; overflow-wrap: anywhere; }
 .wallet { font-family: var(--label); font-size: 12px; text-transform: uppercase; text-align: right; display: grid; gap: 4px; }
 .wallet span { color: var(--ball); font-size: 16px; }
 .tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.beatip { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+.beatip .otag { color: var(--panel-ink); font-size: 15px; }
 .shophead { margin: 4px 0 0; font-family: var(--display); font-size: 20px; text-transform: uppercase; text-shadow: 2px 2px 0 var(--ink); }
 .swatch { width: 28px; height: 28px; border: 3px solid var(--panel-edge); }
 .hubtop { display: grid; grid-template-columns: 1fr; gap: 8px; }
@@ -1195,8 +1198,9 @@ function playerHit(dx, e) {
     else { ty = NET_Y + 0.3; clear = -99; }
   } else {
     tag = q > 0.6 ? (power > 0.75 ? 'Strong' : 'Perfect') : e > 0 ? 'Late' : 'Early';
-    // early pulls the ball across your body, late pushes it the other way
-    tx = side * e * 2.4 + rand(-1, 1) * (0.3 + 0.9 * (1 - q));
+    // good timing places the ball into the open court; early pulls it across your body, late pushes it the other way
+    const open = cpu.x > 0.4 ? -1 : cpu.x < -0.4 ? 1 : (Math.random() < 0.5 ? -1 : 1);
+    tx = open * (0.4 + 2.8 * q * q) + side * e * 2.0 + rand(-1, 1) * (0.3 + 0.9 * (1 - q));
     if (hold >= TOUCH_HOLD) {
       ty = NET_Y + rand(1.6, 3.2); pace = 9; tx *= 0.7; clear = 0.15; if (q > 0.6) tag = 'Drop shot';
     } else if (player.y > NET_Y - 4.5 && ball.z > 1.6) {
@@ -1230,8 +1234,12 @@ function playerHit(dx, e) {
 function cpuHit(dx) {
   const d = D();
   cpu.side = dx <= 0 ? -1 : 1; cpu.swing = 1;
+  // pressure: stretched wide, made to run, or facing pace makes errors and short replies more likely
+  const spd = Math.hypot(ball.vx, ball.vy);
+  const stretch = Math.min(1, Math.abs(dx) / C_REACH);
+  const pressure = 0.1 * stretch * stretch + Math.max(0, spd - 16) * 0.012 + Math.max(0, (cpu.runDist || 0) - 3) * 0.03 + (ball.power ? 0.14 : 0);
   ball.isServe = false;
-  if (Math.random() < d.err) {
+  if (Math.random() < d.err + pressure) {
     if (Math.random() < 0.45) { launch('c', rand(-HW + 0.5, HW - 0.5), NET_Y - 0.3, d.pace, -99); return; }
     const wide = Math.random() < 0.5;
     const tx = wide ? (Math.random() < 0.5 ? -1 : 1) * rand(HW + 0.25, HW + 1.3) : rand(-HW + 0.5, HW - 0.5);
@@ -1240,6 +1248,8 @@ function cpuHit(dx) {
     return;
   }
   let tx, ty = d.deep ? rand(0.5, 3.6) : rand(0.7, 5.6), pace = d.pace * rand(0.9, 1.08), clear = 0.3, kind = 'drive';
+  const weak = Math.random() < pressure * 3;          // a defensive reply that sits up for you
+  if (weak) { ty = rand(4.5, NET_Y - 2.5); pace *= 0.78; }
   if (Math.random() < d.aim) tx = (player.x > 0 ? -1 : 1) * rand(1.4, HW - 0.4);
   else tx = rand(-(HW - 0.6), HW - 0.6);
   const atNet = player.y > NET_Y - 5;
@@ -1274,6 +1284,7 @@ function endPoint(winner, reason) {
   S.cheer = wi === 0 ? 1.6 : 0.6;
   if (wi === 0) sfx.win(); else sfx.lose();
   sayOpp(wi === 1);
+  (wi === 0 ? player : cpu).cheer = 0.9;
   if ((S.rally || 0) >= 8 || ball.power) { roar(Math.min(1, 0.4 + (S.rally || 0) * 0.04)); S.cheer = 2.4; }
   if (S.online) netPoint('point', winner, reason);
   if (S.career) updateGoalChip();
@@ -1394,7 +1405,7 @@ function update(dt) {
   }
   if (S.state === 'rally' && !ball.dead && !S.online) {
     if (ball.lastHitter === 'p') {
-      if (!cpu.plan) { cpu.react -= dt; if (cpu.react <= 0) cpu.plan = planIntercept(); }
+      if (!cpu.plan) { cpu.react -= dt; if (cpu.react <= 0) { cpu.plan = planIntercept(); cpu.runDist = cpu.plan.letGo ? 0 : Math.hypot(cpu.plan.x - cpu.x, cpu.plan.y - cpu.y); } }
       if (cpu.plan) {
         if (cpu.plan.letGo) { cpu.tx = cpu.x * 0.9; cpu.ty = cpu.home || L + 0.8; }
         else { cpu.tx = cpu.plan.x; cpu.ty = cpu.plan.y; }
@@ -1413,6 +1424,8 @@ function update(dt) {
   cpu.swing = cpu.swing > 0 ? cpu.swing - dt * 3.2 : 0;
   if (ball.mark) { ball.mark.t -= dt; if (ball.mark.t <= 0) ball.mark = null; }
   if (S.cheer > 0) S.cheer -= dt;
+  if (player.cheer > 0) player.cheer -= dt;
+  if (cpu.cheer > 0) cpu.cheer -= dt;
   if (S.state !== 'serve') {
     ball.trail.push(pp(ball.x, ball.y, ball.z));
     if (ball.trail.length > (ball.power ? 9 : 4)) ball.trail.shift();
@@ -1523,9 +1536,11 @@ function drawLegs(left, top, lift, skin) {
   rect(left, sy + 2, 4, 1, PAL.k);
 }
 function drawPlayer(p, isPlayer) {
-  const [fx, fy] = pp(p.x, p.y, 0);
+  const [fx, fy0] = pp(p.x, p.y, 0);
+  const hop = p.cheer > 0 ? Math.round(Math.abs(Math.sin(p.cheer * 11)) * 3) : 0;   // point-winner hop
+  const fy = fy0 - hop;
   const left = fx - 7, top = fy - 23;
-  pEllipse(fx, fy, 6, 1, PAL.t);
+  pEllipse(fx, fy0, 6, 1, PAL.t);
   const skin = isPlayer ? [PAL.s, PAL.o, PAL.r] : OPP_LOOK.skin.map(k => PAL[k]);
   const frame = p.moving > 0.2 ? Math.floor(p.run) % 4 : 0;
   const liftL = frame === 1 ? 2 : 0, liftR = frame === 3 ? 2 : 0;
@@ -1537,7 +1552,7 @@ function drawPlayer(p, isPlayer) {
   const t = clamp(p.swing, 0, 1);
   const winding = isPlayer && p.charge && p.swingT < 0;
   if (winding) { p.side = (ball.lastHitter === 'c' ? ball.x : p.x + 1) >= p.x ? 1 : -1; side = p.side; }
-  let ang = winding ? p.side * 2.2 : t > 0 ? side * (-1.2 + 3.4 * t) : side * 1.2;
+  let ang = winding ? p.side * 2.2 : t > 0 ? side * (-1.2 + 3.4 * t) : p.cheer > 0 ? side * 0.3 : side * 1.2;
   const step = ((Math.round(ang / (Math.PI / 6)) % 12) + 12) % 12;
   ang = step * Math.PI / 6;
   const ux = Math.sin(ang), uy = -Math.cos(ang);
@@ -1696,7 +1711,7 @@ const OPPS = {
     pre: "On clay, nobody runs past me. I'll be there. Every. Single. Ball.",
     tip: "Ines never gets tired. Mix quick taps with soft holds to drag her forward.",
     win: "Your legs held up. Most don't. Respect." },
-  rex1: { name: 'Rex Vantage', tag: 'The rival', boss: true, ai: { speed: 5.5, react: 0.2, miss: 0.3, err: 0.1, pace: 18, serve: 19, aim: 0.6, drop: 0.08, net: 0.15 }, pts: 100,
+  rex1: { name: 'Rex Vantage', tag: 'The rival', boss: true, ai: { speed: 5.4, react: 0.21, miss: 0.32, err: 0.11, pace: 17, serve: 18.5, aim: 0.5, drop: 0.06, net: 0.15 }, pts: 100,
     look: { skin: ['s', 'o', 'r'], hair: ['s', 'o'], style: 'swoop', shirt: ['r', 'h', 'n'], trim: 's', racket: 's', bg: 'h' },
     goal: { type: 'ace', text: 'Serve an ace' },
     pre: "Rex Vantage. You've heard of me. The ball kid from Old Meadow? Cute. Try not to cry when I win.",
@@ -1807,6 +1822,19 @@ const ENDING = [
 ];
 const LOSS_LINES = ["Shake it off. Watch where they hit, then try again.", "Close. Next time, swing a hair earlier.",
   "Every champion lost a hundred times first. Go again.", "Coins still count. Spend them on upgrades if you're stuck."];
+const TIPS = [
+  "Three Perfect shots in a row fill your Focus meter. The next swing is a Power shot.",
+  "Perfect timing sends the ball into the open court. Make them run and they'll start missing.",
+  "Swing early to pull the ball cross-court. Swing late to send it down the line.",
+  "A quick tap hits hard. Hold a little longer for a softer, safer ball.",
+  "Hold until the power bar flashes for a drop shot. Great against players who stay back.",
+  "Serve at the very top of the toss. Too early or too late and you'll fault.",
+  "Your stars carry over. Replay a match any time to collect the ones you missed.",
+  "Coins come from every match, even a loss. Upgrades make the later tiers fairer.",
+  "Clay bounces high and slow. Indoor courts skid fast. Grass stays low.",
+  "Long rallies earn bonus coins, and the crowd loves them.",
+  "Step forward to the net after a strong shot. A volley ends the point fast.",
+];
 const UPGRADES = [
   { key: 'speed', name: 'Speed', desc: 'Run faster' },
   { key: 'reach', name: 'Reach', desc: 'Hit balls further from your body' },
@@ -1898,7 +1926,7 @@ function mergeCareer(c) {
   const base = newCareer();
   return { ...base, ...c, stats: { ...base.stats, ...(c.stats || {}) }, best: { ...(c.best || {}) }, seen: { ...(c.seen || {}) },
            trophies: { ...(c.trophies || {}) }, endless: { ...base.endless, ...(c.endless || {}) },
-           daily: c.daily || 0, h2h: { ...(c.h2h || {}) }, kit: { ...(c.kit || {}) }, owned: Array.isArray(c.owned) ? c.owned.slice() : [] };
+           daily: c.daily || 0, life: { perfects: 0, powers: 0, aces: 0, longest: 0, ...(c.life || {}) }, h2h: { ...(c.h2h || {}) }, kit: { ...(c.kit || {}) }, owned: Array.isArray(c.owned) ? c.owned.slice() : [] };
 }
 function saveCareer() {
   CAREER.updated = Date.now();
@@ -2011,11 +2039,16 @@ function openCareer() {
   }
   renderHub();
   show('career', true);
+  if (HUB_TAB === 'tour') {
+    const next = $('hubBody').querySelector('.opp.story.open');
+    if (next) requestAnimationFrame(() => next.scrollIntoView({ block: 'center' }));
+  }
 }
 function renderHub() {
   drawPortrait($('youPortrait'), CAST.you.look);
-  $('cName').textContent = CAREER.name;
+  $('cName').textContent = CAREER.name + (CAREER.champion ? ' · Meadow Champion' : '');
   $('cRank').textContent = '#' + rankFor(CAREER.pts);
+  $('cRank').classList.toggle('top', rankFor(CAREER.pts) === 1);
   $('cCoins').textContent = CAREER.coins;
   $('cStars').textContent = totalStars();
   document.querySelectorAll('#career .tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === HUB_TAB)));
@@ -2028,6 +2061,11 @@ function renderHub() {
 }
 function renderTour(body) {
   let shownLocked = false;
+  const tip = el('div', 'beatip');
+  const tcv = el('canvas', 'portrait'); drawPortrait(tcv, CAST.bea.look);
+  const tt = el('div', 'oinfo'); tt.append(el('div', 'dname', "Bea's tip"), el('div', 'otag', TIPS[CAREER.matches % TIPS.length]));
+  tip.append(tcv, tt);
+  body.append(tip);
   const pb = el('button', 'btn small', CAREER.practiced ? 'Practice court' : 'Practice court · +50 coins');
   pb.type = 'button'; pb.addEventListener('click', startPractice);
   body.append(pb);
@@ -2041,7 +2079,7 @@ function renderTour(body) {
     sec.append(head, el('p', 'blurb', open ? t.blurb : `Locked. Beat ${OPPS[TIERS[ti - 1].opps.at(-1)].name} to enter.`));
     if (open) t.opps.forEach(id => {
       const o = OPPS[id], st = oppState(ti, id);
-      const row = el('div', 'opp ' + st);
+      const row = el('div', 'opp story ' + st);
       const info = el('div', 'oinfo');
       const rec = (CAREER.h2h || {})[id];
       info.append(el('div', 'oname', o.name + (o.boss ? ' · Boss' : '')), el('div', 'otag', st === 'locked' ? 'Beat the others in this tier first' : o.tag + ' · ' + o.goal.text + (rec ? ` · Record ${rec[0]}–${rec[1]}` : '')));
@@ -2098,7 +2136,7 @@ function startCareerMatch(id) {
   if (ti < 0 && typeof startEndlessMatch === 'function') return startEndlessMatch(id);
   const t = TIERS[ti], o = OPPS[id];
   if (S.online || NET.game) leaveOnline();
-  show('career', false);
+  ['career', 'menu', 'end', 'online', 'results', 'pause'].forEach(id => show(id, false));
   setOpponent({ ...o.ai, marker: t.marker, look: o.look });
   PS = statsFor(CAREER.stats); RULES = { ...t.rules };
   S.career = { id, tier: ti, goal: o.goal, coins: t.coins, pts: o.pts, name: o.name }; S.mod = {};
@@ -2133,6 +2171,8 @@ function careerResults() {
   if (won && !special) CAREER.best[c.id] = Math.max(prev, n);
   if (c.endless && typeof endlessResult === 'function') endlessResult(won);
   const after = rankFor(CAREER.pts);
+  const life = CAREER.life = CAREER.life || { perfects: 0, powers: 0, aces: 0, longest: 0 };
+  life.perfects += MS.perfects; life.powers += MS.powers || 0; life.aces += MS.aces; life.longest = Math.max(life.longest, MS.rallyMax);
   LAST = { won, perfects: MS.perfects, rallyMax: MS.rallyMax, powers: MS.powers || 0, aces: MS.aces, lost: M.games[1], deficit: MS.deficit || 0 };
   saveCareer();
   // results card
@@ -2228,7 +2268,8 @@ function runToasts() {
 }
 function renderTrophies(body) {
   const n = TROPHIES.filter(t => CAREER.trophies[t.id]).length;
-  body.append(el('p', 'blurb', `${n} of ${TROPHIES.length} trophies. Matches played: ${CAREER.matches}, won: ${CAREER.wins}.`));
+  const life = CAREER.life || { perfects: 0, powers: 0, aces: 0, longest: 0 };
+  body.append(el('p', 'blurb', `${n} of ${TROPHIES.length} trophies. Matches ${CAREER.matches}, won ${CAREER.wins}. Perfect shots ${life.perfects}, Power shots ${life.powers}, aces ${life.aces}, longest rally ${life.longest}.`));
   const grid = el('div', 'trophies');
   TROPHIES.forEach(t => {
     const got = !!CAREER.trophies[t.id];
@@ -2303,7 +2344,7 @@ function startEndlessMatch(id) {
   const o = OPPS[id];
   if (!o) { openCareer(); return; }
   if (S.online || NET.game) leaveOnline();
-  show('career', false); show('results', false);
+  ['career', 'menu', 'end', 'online', 'results', 'pause'].forEach(id => show(id, false));
   setOpponent({ ...o.ai, marker: false, look: o.look });
   PS = statsFor(CAREER.stats); RULES = { toWin: 3, by: 1 };
   S.career = { id, tier: 5, goal: o.goal, coins: o.coins, pts: o.pts, name: o.name, endless: true }; S.mod = {};
@@ -2427,7 +2468,7 @@ const PRACTICE = [
 let PR = null;
 function startPractice() {
   if (S.online || NET.game) leaveOnline();
-  show('career', false);
+  ['career', 'menu', 'end', 'online', 'results', 'pause'].forEach(id => show(id, false));
   setOpponent({ speed: 6, react: 0.15, miss: 0.1, err: 0, pace: 12, serve: 11, aim: 0, marker: true, look: CAST.bea.look });
   PS = statsFor(CAREER.stats); RULES = { toWin: 99, by: 1 };
   setVenue('grass');
@@ -2512,7 +2553,7 @@ function startDaily() {
   const d = dailySpec(), o = d.o;
   OPPS.daily = o;
   if (S.online || NET.game) leaveOnline();
-  show('career', false); show('results', false);
+  ['career', 'menu', 'end', 'online', 'results', 'pause'].forEach(id => show(id, false));
   setOpponent({ ...o.ai, marker: d.tier < 3, look: o.look });
   PS = statsFor(CAREER.stats); RULES = { toWin: 3, by: 1 };
   const already = CAREER.daily === todayKey();
@@ -2627,10 +2668,12 @@ function onGamePeers() {
 function netSend(patch) { if (NET.game) NET.game.presence(patch).catch(() => {}); }
 function startOnline(ep, iStarted) {
   initAudio();
-  S.online = true; NET.ep = ep; NET.shotN = 0; NET.ptN = 0; NET.seenShot = 0; NET.seenPt = 0; NET.goneAt = 0; NET.oppToss = -1;
+  S.online = true; NET.ep = ep; NET.oppKit = ''; NET.shotN = 0; NET.ptN = 0; NET.seenShot = 0; NET.seenPt = 0; NET.goneAt = 0; NET.oppToss = -1;
   const opp = oppPeer();
   NET.oppSw = opp && opp.presence ? opp.presence.sw : null;
-  netSend(iStarted ? { go: ep, ep, shot: null, pt: null } : { ep, shot: null, pt: null });
+  const myKit = (CAREER && CAREER.kit) || {};
+  netSend({ ...(iStarted ? { go: ep, ep, shot: null, pt: null } : { ep, shot: null, pt: null }),
+            kit: { cap: kitItem('cap', myKit.cap).id, shirt: kitItem('shirt', myKit.shirt).id, racket: kitItem('racket', myKit.racket).id } });
   if (NET.room) NET.room.presence({ host: null }).catch(() => {});
   Object.assign(M, { games: [0, 0], pts: [0, 0], server: iStarted ? 0 : 1, over: false, winner: -1 });
   S.mode = 'play'; S.paused = false; S.second = false; S.tips = 0;
@@ -2679,6 +2722,14 @@ function netPoint(kind, winner, reason) {
 function handleOpp(pr) {
   if (num(pr.go) && pr.go > NET.ep && NET.game) { startOnline(pr.go, false); return; }
   if (!S.online || pr.ep !== NET.ep) return;
+  if (pr.kit && typeof pr.kit === 'object') {        // show your friend in their own colours
+    const key = [pr.kit.cap, pr.kit.shirt, pr.kit.racket].join('/');
+    if (key !== NET.oppKit) {
+      NET.oppKit = key;
+      const cap = kitItem('cap', String(pr.kit.cap)).c, shirt = kitItem('shirt', String(pr.kit.shirt)).c;
+      setOpponent({ ...DIFFS[1], look: { band: cap, shirt, trim: cap[0], racket: kitItem('racket', String(pr.kit.racket)).c } });
+    }
+  }
   if (num(pr.x) && num(pr.y)) {          // mirror into my frame
     cpu.tx = clamp(-pr.x, -(DHW + 2.5), DHW + 2.5);
     cpu.ty = clamp(L - pr.y, NET_Y + 0.7, L + 4.5);
@@ -2727,6 +2778,7 @@ function applyPoint(pt) {
     showCall(big, call, iWon);
     S.cheer = iWon ? 1.6 : 0.6;
     if (iWon) sfx.win(); else sfx.lose();
+    (iWon ? player : cpu).cheer = 0.9;
   }
   renderBoard(); setHint();
 }
