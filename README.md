@@ -37,6 +37,8 @@ You're a ball kid at Old Meadow. Coach Bea, who keeps the lawns and once played 
 | National Indoors | Fast indoor carpet | First to 3, win by 2 | Kenji Mori, Sasha Volkov, Theo Brant |
 | The Lawn Series | Grass, no training rings | First to 3, win by 2 | Lucia Ferro, Odette Blanc, Rex Vantage |
 | The Meadow Crown | Centre Court | First to 4, win by 2 | Anton Grey, Victor Hale (final) |
+| Season Two: Harbour Masters | Seaside hard court, sea wind | First to 3, win by 2 | Mara Quinn, Dax Okafor, Silas Crowe (Victor's protégé) |
+| Season Two: The Night Final | Old Meadow under floodlights | First to 4, win by 2 | Yuki Tanaka, Silas Crowe (final) |
 
 Each opponent has their own look, portrait, lines and playing style: pushers, lobbers, big servers, grinders, net rushers, drop-shot artists and more.
 
@@ -54,7 +56,7 @@ The loop:
 - **Endless Tour:** opens after the final. Play named three-round tournaments (quarterfinal, semifinal, final) for titles and a big coin bonus. Lose and you're out until the next event. Opponents keep getting harder as you chase and defend World #1.
 - **World ranking board:** tap your ranking in the hub to see the players around you, including your story rivals, and how many points you need to pass the next one.
 - **Court life:** the venues grow as you climb, from no officials at the park to an umpire and ball kids who fetch the ball after every point.
-- **Trophies:** 18 to collect.
+- **Trophies:** 20 to collect.
 
 Your career saves on your device. In the claude.ai version it also saves privately to your account (only for viewers allowed to write data, such as the owner and Contributors).
 

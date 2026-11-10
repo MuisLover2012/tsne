@@ -135,6 +135,10 @@ body {
 #reviewVerdict { font-family: var(--display); font-weight: 700; font-size: 48px; line-height: 1; text-shadow: 3px 3px 0 var(--ink); color: var(--chalk); }
 #reviewVerdict.good { color: var(--ball); }
 #reviewSub { font-size: 15px; color: var(--panel-dim); text-align: center; }
+#rotate { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 10px); pointer-events: none;
+  font-family: var(--label); font-size: 10px; text-transform: uppercase; background: var(--panel); color: var(--panel-ink);
+  border: 3px solid var(--ink); padding: 5px 8px; white-space: nowrap; }
+#rotate[hidden] { display: none; }
 #rally {
   position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(env(safe-area-inset-top, 0px) + 64px);
   font-family: var(--display); font-weight: 700; font-size: 22px; text-transform: uppercase; pointer-events: none;
@@ -375,6 +379,7 @@ body {
 
 <div id="tag" aria-hidden="true"></div>
 <div id="rally" aria-hidden="true"></div>
+<div id="rotate" hidden>Turn your phone upright for a bigger court</div>
 <button type="button" id="chBtn" class="btn primary" hidden>Challenge</button>
 <div id="review" hidden><div class="rcard"><div class="eyebrow">Line review</div><canvas id="reviewCv" width="96" height="64"></canvas><div id="reviewVerdict">IN</div><div id="reviewSub"></div></div></div>
 <div id="bubble" aria-hidden="true"></div>
@@ -706,6 +711,7 @@ function fit() {
   HY = top + (avail - ySpan) / 2 - (ch - HEAD) * b * F;
   CX = VW / 2;
   bakeCourt(); bakeNet(); seatCrowd();
+  $('rotate').hidden = !(W > H && H < 500 && 'ontouchstart' in window);
 }
 
 // ---------- Baked layers ----------
@@ -722,6 +728,8 @@ const VENUES = {
   indoor: { court: 'indoor', back: 'indoor', crowd: 0.6,  rows: 8, wall: ['n', 'c'], surf: { bounce: 0.7, fric: 0.9 } },
   grass:  { court: 'grass',  back: 'stands', crowd: 0.8,  rows: 9, wall: ['v', 'M'], surf: { bounce: 0.68, fric: 0.86 } },
   centre: { court: 'grass',  back: 'stands', crowd: 1,    rows: 12, wall: ['g', 'h'], surf: { bounce: 0.68, fric: 0.86 } },
+  harbour: { court: 'hard',  back: 'harbour', crowd: 0.6, rows: 3, wall: ['w', 'c'], surf: { bounce: 0.72, fric: 0.89 } },
+  night:  { court: 'night',  back: 'night',  crowd: 0.9,  rows: 12, wall: ['k', 'g'], surf: { bounce: 0.68, fric: 0.86 } },
 };
 let VEN = VENUES.grass, VEN_ID = 'grass';
 function setVenue(v) {
@@ -742,6 +750,12 @@ function surfaceColor(x, y, px, py, bay, inShadow) {
       if (t > 0 && t * 1.4 > bay + 0.3) return RGB.r;
     }
     return bay < 0.07 ? RGB.r : bay > 0.94 ? RGB.s : RGB.o;
+  }
+  if (c === 'night') {                                       // grass under floodlights
+    if (Math.abs(x) > DHW + 6.5) return RGB.v;
+    if (inShadow) return (px + py) % 2 ? RGB.v : RGB.t;
+    for (const cy of [-0.5, L + 0.5]) { const t = 1 - Math.hypot(x / 2.3, (y - cy) / 1.7); if (t > 0 && t * 1.6 > bay + 0.3) return (px + py) % 2 ? RGB.o : RGB.t; }
+    return (Math.floor((y + 22) / 2.2) % 2) && bay < 0.13 ? RGB.g : RGB.t;
   }
   if (c === 'hard' || c === 'indoor') {
     const inner = Math.abs(x) <= DHW + 1.2 && y >= -3 && y <= L + 3;
@@ -819,6 +833,22 @@ function backdropColor(px, py) {
     }
     const bay = BAYER[(py & 3) * 4 + (px & 3)] / 16, depth = (py - canopy) / Math.max(1, sb - canopy);
     return depth < 0.25 && bay < 0.35 ? RGB.l : depth > 0.7 && bay < 0.5 ? RGB.t : RGB.g;
+  }
+  if (VEN.back === 'harbour') {
+    if (py < sb * 0.32) return ((px - VW * 0.8) ** 2 + (py - sb * 0.12) ** 2 < 30) ? RGB.s : RGB.c;   // sky and sun
+    if (py < sb * 0.62) {                                                                              // the harbour
+      const boat = [[0.15, 0.5], [0.45, 0.42], [0.72, 0.55]].some(([fx, fy]) => Math.abs(px - fx * VW) < 5 && Math.abs(py - fy * sb) < 1.5);
+      const mast = [[0.15, 0.5], [0.45, 0.42], [0.72, 0.55]].some(([fx, fy]) => px === Math.round(fx * VW) && py < fy * sb && py > fy * sb - 7);
+      if (boat) return RGB.w; if (mast) return RGB.M;
+      const bay = BAYER[(py & 3) * 4 + (px & 3)] / 16;
+      return bay < 0.08 ? RGB.y : bay < 0.2 ? RGB.c : RGB.b;
+    }
+    return ((py - sb) % 6 === -1 || (py - sb) % 6 === 5) ? RGB.v : RGB.n;
+  }
+  if (VEN.back === 'night') {
+    if (py < 5) return (px % 20 < 7) ? RGB.w : RGB.k;                        // floodlights
+    if (py < 9 && px % 20 < 7) return (py + px) % 2 ? RGB.y : RGB.k;         // light spill
+    return ((py - sb) % 6 === -1 || (py - sb) % 6 === 5) ? RGB.n : RGB.k;
   }
   if (VEN.back === 'indoor') {
     if (py < 4) return (px % 16 < 6) ? RGB.y : RGB.k;                 // lighting rig
@@ -906,7 +936,7 @@ const sfx = {
   bounce(near) {
     const c = VEN.court, v = near ? 1 : 0.5;
     if (c === 'clay') tone(120, 0.07, 0.11 * v, 'triangle');
-    else if (c === 'grass') tone(150, 0.05, 0.09 * v, 'sine');
+    else if (c === 'grass' || c === 'night') tone(150, 0.05, 0.09 * v, 'sine');
     else tone(c === 'indoor' ? 240 : 200, 0.04, 0.09 * v, 'square');
   },
   net() { tone(90, 0.16, 0.12, 'sawtooth'); },
@@ -1559,7 +1589,7 @@ function drawReview(c) {
 }
 
 // ---------- Juice: particles, focus, rally ----------
-const DUST = { grass: ['l', 'g'], clay: ['s', 'o'], hard: ['c', 'w'], indoor: ['c', 'w'] };
+const DUST = { grass: ['l', 'g'], clay: ['s', 'o'], hard: ['c', 'w'], indoor: ['c', 'w'], night: ['g', 't'] };
 function burst(x, y, z, n, colors, spd) {
   const [sx, sy] = pp(x, y, z);
   for (let i = 0; i < n; i++) parts.push({ x: sx, y: sy, vx: rand(-1, 1) * 22 * spd, vy: rand(-1.6, -0.3) * 22 * spd, life: rand(0.2, 0.5), c: PAL[colors[i % colors.length]] });
@@ -1997,6 +2027,37 @@ const OPPS = {
     pre: "So you're Bea's student. I wondered when she'd find one. I beat her here, you know. Her last final.",
     tip: "This is it. Everything you've learned. Watch the ball, not the man.",
     win: "Forty years she's waited for that. Go on. Go to her." },
+  mara: { name: 'Mara Quinn', tag: 'Slice queen', ai: { speed: 6.3, react: 0.13, miss: 0.2, err: 0.06, pace: 17, serve: 19, aim: 0.6, drop: 0.2 }, pts: 150,
+    look: { skin: ['o', 'r', 'h'], hair: ['r', 'h'], style: 'bob', shirt: ['l', 'g', 't'], trim: 'w', racket: 'g', bg: 't' },
+    goal: { type: 'winners', n: 4, text: 'Hit 4 winners' },
+    pre: "They call me the slice queen. The ball stays low, and you stay frustrated.",
+    tip: "Mara's slices skid low and the sea wind pushes everything sideways. Swing a touch early.",
+    win: "Fine. Take your win. I'll be at the next one." },
+  dax: { name: 'Dax Okafor', tag: 'Six foot six', ai: { speed: 5.6, react: 0.15, miss: 0.25, err: 0.07, pace: 21, serve: 25, aim: 0.55, edge: true, net: 0.3 }, pts: 150,
+    look: { skin: ['o', 'r', 'h'], hair: ['n', 'k'], style: 'buzz', shirt: ['c', 'b', 'v'], trim: 's', racket: 's', bg: 'b' },
+    goal: { type: 'break', text: 'Win a game on his serve' },
+    pre: "My serve has a speed camera named after it.",
+    tip: "Dax serves bombs but turns like a cargo ship. Get the return back and make him run.",
+    win: "Respect. Nobody breaks me. You did." },
+  silas1: { name: 'Silas Crowe', tag: "Victor's protégé", boss: true, ai: { speed: 6.6, react: 0.1, miss: 0.14, err: 0.05, pace: 20, serve: 22, aim: 0.72, drop: 0.12, net: 0.2 }, pts: 220,
+    look: { skin: ['s', 'o', 'r'], hair: ['n', 'k'], style: 'swoop', shirt: ['n', 'v', 'k'], trim: 'r', racket: 'r', bg: 'n' },
+    goal: { type: 'perfects', n: 10, text: 'Hit 10 Perfect shots' },
+    pre: "Victor trained me for six years to beat you. Six years. You had one summer.",
+    tip: "Silas plays like Victor, but he gets angry. Win a long rally and he starts missing.",
+    win: "This isn't over. The Night Final. I'll see you there.",
+    after: [['bea', "Victor's protégé. He plays like Victor did at twenty."], ['bea', "The Night Final is at Old Meadow, under lights. A first in the club's history."]] },
+  yuki: { name: 'Yuki Tanaka', tag: 'The metronome', ai: { speed: 6.8, react: 0.1, miss: 0.12, err: 0.045, pace: 19.5, serve: 21, aim: 0.7, deep: true }, pts: 260,
+    look: { skin: ['s', 'o', 'r'], hair: ['n', 'k'], style: 'bun', shirt: ['w', 'm', 'M'], trim: 'c', racket: 'c', bg: 'c' },
+    goal: { type: 'rally', n: 15, text: 'Win a rally of 15+ shots' },
+    pre: "I have not missed a forehand since Tuesday.",
+    tip: "Yuki never misses first. Charge your Focus and take the Power shot when it's ready.",
+    win: "It is Wednesday now. I missed. Well played." },
+  silas2: { name: 'Silas Crowe', tag: 'The Night Final', boss: true, ai: { speed: 6.9, react: 0.09, miss: 0.11, err: 0.045, pace: 20.5, serve: 22.5, aim: 0.72, drop: 0.12, net: 0.25, lob: 0.55, edge: true }, pts: 450,
+    look: { skin: ['s', 'o', 'r'], hair: ['n', 'k'], style: 'swoop', shirt: ['n', 'v', 'k'], trim: 's', racket: 'r', bg: 'k' },
+    goal: { type: 'love', text: 'Win a game without dropping a point' },
+    pre: "Under the lights, on your lawns. I'll take your crown and your coach's grass.",
+    tip: "Everything you've got, {name}. One more time.",
+    win: "...Six years of training. You play like it's fun. Maybe that's the difference." },
 };
 // What opponents shout when they win / lose a point
 const QUIPS = {
@@ -2015,7 +2076,18 @@ const QUIPS = {
   odette: [['Short and sweet.', 'Volley!'], ['Ugh, long point.', 'Fine.']],
   grey: [['...', '...'], ['...', '...']],
   victor: [['Experience.', 'Patience.'], ['Hm. Good.', 'Bea taught you that.']],
+  mara: [['Low and slow.', 'Slice!'], ['Hmph.', 'Windy.']],
+  dax: [['Speed camera!', 'BOOM.'], ['Too quick for me.', 'Huh.']],
+  silas1: [["That's Victor's shot.", 'Six years!'], ['Lucky.', 'Grr!']],
+  silas2: [['My lawns now.', 'Six years!'], ['No!', 'Not again.']],
+  yuki: [['Tick.', 'Tock.'], ['Hm.', 'Interesting.']],
 };
+const SEASON2_END = [
+  ['bea', "{name}. Two crowns. One under the sun, one under the lights."],
+  ['bea', "I'm hanging up the rake. Old Meadow needs a new keeper of the lawns."],
+  ['bea', "It's yours. The grass, the club, the ball kids. Teach them like I taught you."],
+  ['you', "The Night Crown is yours. Thank you for playing Grass Court Rally."],
+];
 const TIERS = [
   { id: 'park', name: 'Park Courts', venue: 'park', rules: { toWin: 2, by: 1 }, coins: 40, marker: true, opps: ['pip', 'toby', 'marla'],
     blurb: 'Hard courts, cracked corners, pigeons.',
@@ -2032,6 +2104,12 @@ const TIERS = [
   { id: 'crown', name: 'The Meadow Crown', venue: 'centre', rules: { toWin: 4, by: 2 }, coins: 160, marker: false, opps: ['grey', 'victor'],
     blurb: 'Centre Court, Old Meadow. The final.',
     intro: [['bea', "Old Meadow. Our lawns, {name}. Centre Court. I painted these lines myself this morning."], ['bea', "Don't look at the crowd. Look at the ball. It's the same ball you've been catching for three summers."]] },
+  { id: 'harbour', name: 'Harbour Masters', venue: 'harbour', rules: { toWin: 3, by: 2 }, coins: 180, marker: false, opps: ['mara', 'dax', 'silas1'],
+    blurb: 'Season two. Sea air, a fast hard court, wind off the water and a new rival.',
+    intro: [['bea', "Season two, {name}. The whole tour knows your name now."], ['bea', "Harbour Masters. The wind off the water pushes the ball sideways. And someone's waiting for you there."]] },
+  { id: 'night', name: 'The Night Final', venue: 'night', rules: { toWin: 4, by: 2 }, coins: 220, marker: false, opps: ['yuki', 'silas2'],
+    blurb: 'Old Meadow under floodlights, for the first time ever.',
+    intro: [['bea', "The Night Final. Floodlights on our lawns. First time ever."], ['bea', "Strange to see the grass glow like that. Strange, and beautiful."]] },
 ];
 const INTRO = [
   ['bea', "You there. Ball kid. Three summers at Old Meadow and you've never once let a ball bounce twice."],
@@ -2046,7 +2124,7 @@ const ENDING = [
   ['bea', "{name}. Look at that crowd."],
   ['bea', "Forty years ago I lost on this court and I thought that was the end of my story."],
   ['bea', "Turns out it was the middle. Thank you."],
-  ['you', "The Meadow Crown is yours. The Endless Tour is open: keep winning and climb to World Number 1."],
+  ['you', "The Meadow Crown is yours. The Endless Tour is open, and Season Two starts at the Harbour Masters."],
 ];
 const LOSS_LINES = ["Shake it off. Watch where they hit, then try again.", "Close. Next time, swing a hair earlier.",
   "Every champion lost a hundred times first. Go again.", "Coins still count. Spend them on upgrades if you're stuck."];
@@ -2275,7 +2353,7 @@ function openCareer() {
 }
 function renderHub() {
   drawPortrait($('youPortrait'), CAST.you.look);
-  $('cName').textContent = CAREER.name + (CAREER.champion ? ' · Meadow Champion' : '');
+  $('cName').textContent = CAREER.name + (CAREER.champion2 ? ' · Night Champion' : CAREER.champion ? ' · Meadow Champion' : '');
   $('cRank').textContent = '#' + rankFor(CAREER.pts);
   $('cRank').classList.toggle('top', rankFor(CAREER.pts) === 1);
   $('cCoins').textContent = CAREER.coins;
@@ -2332,7 +2410,7 @@ function renderTour(body) {
 }
 // ---------- World ranking board ----------
 // Story characters hold fixed places; everyone else at a given rank is generated from that rank.
-const PINNED = { 1: 'victor', 3: 'grey', 8: 'rex2', 12: 'odette', 15: 'lucia', 34: 'theo', 41: 'sasha', 47: 'kenji', 120: 'ines', 133: 'hugo', 404: 'marla', 610: 'toby', 777: 'pip' };
+const PINNED = { 1: 'victor', 2: 'silas2', 3: 'grey', 6: 'yuki', 18: 'dax', 22: 'mara', 8: 'rex2', 12: 'odette', 15: 'lucia', 34: 'theo', 41: 'sasha', 47: 'kenji', 120: 'ines', 133: 'hugo', 404: 'marla', 610: 'toby', 777: 'pip' };
 function npcAt(r) {
   if (PINNED[r]) return { id: PINNED[r], name: OPPS[PINNED[r]].name, look: OPPS[PINNED[r]].look };
   let s2 = r * 7919 + 13;
@@ -2435,7 +2513,8 @@ function startCareerMatch(id) {
   ['career', 'menu', 'end', 'online', 'results', 'pause'].forEach(id => show(id, false));
   setOpponent({ ...o.ai, marker: t.marker, look: o.look });
   PS = careerStats(); RULES = { ...t.rules };
-  S.career = { id, tier: ti, goal: o.goal, coins: t.coins, pts: o.pts, name: o.name }; S.mod = {};
+  S.career = { id, tier: ti, goal: o.goal, coins: t.coins, pts: o.pts, name: o.name };
+  S.mod = t.venue === 'harbour' ? { wind: (Math.random() < 0.5 ? -1 : 1) * 1.4 } : {};
   stageScene(id, t.venue);
   $('nameC').textContent = o.name.split(' ')[0].slice(0, 6);
   runScene([[id, o.pre], ['bea', o.tip]], () => showVs(o, t.name, beginCareerMatch));
@@ -2513,6 +2592,7 @@ function careerResults() {
     else lines = [['bea', LOSS_LINES[(Math.random() * LOSS_LINES.length) | 0]], ['bea', o.tip]];
     const finale = won && first && c.id === 'victor';
     if (finale) { CAREER.champion = true; saveCareer(); lines = lines.concat(ENDING); confetti(260); setVenue('centre'); }
+    if (won && first && c.id === 'silas2') { CAREER.champion2 = true; saveCareer(); lines = lines.concat(SEASON2_END); confetti(300); }
     if (after === 1 && before > 1) lines = lines.concat([['bea', "World Number 1, {name}. From ball kid to Number 1."], ['bea', "Now comes the hard part. Staying there."]]);
     stageScene(special ? null : c.id, null);
     runScene(lines, () => { if (typeof checkTrophies === 'function') checkTrophies(); openCareer(); });
@@ -2541,6 +2621,8 @@ const TROPHIES = [
   { id: 'loaded', name: 'Fully Loaded', desc: 'Max out every upgrade' },
   { id: 'onfire', name: 'On Fire', desc: 'Win 5 Endless Tour matches in a row' },
   { id: 'allstars', name: 'Completionist', desc: 'Earn every star in the story' },
+  { id: 'harbour', name: 'Harbour Master', desc: 'Beat Silas Crowe at the harbour' },
+  { id: 'night', name: 'The Night Crown', desc: 'Win the Night Final' },
   { id: 'title', name: 'Tour Winner', desc: 'Win an Endless Tour tournament' },
   { id: 'titles5', name: 'Five Titles', desc: 'Win 5 Endless Tour tournaments' },
 ];
@@ -2563,6 +2645,8 @@ function trophyEarned(t) {
     case 'comeback': return !!L2 && L2.won && L2.deficit >= 2;
     case 'loaded': return STAT_KEYS.every(k => CAREER.stats[k] >= UPGRADE_COST.length);
     case 'onfire': return CAREER.endless.streak >= 5;
+    case 'harbour': return !!b.silas1;
+    case 'night': return !!b.silas2;
     case 'title': return (CAREER.endless.titles || 0) >= 1;
     case 'titles5': return (CAREER.endless.titles || 0) >= 5;
     case 'allstars': return TIERS.every(t2 => t2.opps.every(id => (b[id] || 0) >= 3));
@@ -2691,7 +2775,7 @@ function renderEndless(body) {
   });
   body.prepend(sec);
 }
-const VENUE_NAMES = { park: 'Park', clay: 'Clay', indoor: 'Indoor', grass: 'Grass', centre: 'Centre Court' };
+const VENUE_NAMES = { park: 'Park', clay: 'Clay', indoor: 'Indoor', grass: 'Grass', centre: 'Centre Court', harbour: 'Harbour', night: 'Night court' };
 function startEndlessMatch(id) {
   const o = OPPS[id];
   if (!o) { openCareer(); return; }
