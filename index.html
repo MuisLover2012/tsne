@@ -1262,7 +1262,7 @@ function planIntercept() {
 // Every story boss has a signature shot. Beat them to learn it and pick one in Upgrades: a full Focus meter
 // fires it. Opponents charge their own meter as they hit, glow when it's full and shout the name as they fire.
 const SPECIALS = {
-  power:     { name: 'Power shot', owner: null,     col: ['w', 's', 'o'], desc: 'A fast, heavy drive to the deep corner. Only Perfect or Neutral timing connects: early or late, you miss it.' },
+  power:     { name: 'Power shot', owner: null,     col: ['w', 's', 'o'], desc: 'A fast, heavy drive to the deep corner. Only Perfect or Neutral timing connects, both when you fire it and when it comes at you.' },
   meteor:    { name: 'Meteor',     owner: 'marla',  col: ['h', 'o', 's'], desc: 'A sky-high lob that crashes down and kicks up over their head.',
                counter: 'When it goes up, run back. Way back.' },
   frost:     { name: 'Frostbite',  owner: 'rex1',   col: ['y', 'w', 'c'], desc: 'Skids off the court, low and fast, after it bounces.',
@@ -1626,8 +1626,11 @@ function playerHit(dx, e) {
   const incomingWeak = !!ball.weak;
   const frame = ae > T_LATE && Math.random() < 0.25;
   const perfect = !frame && ae <= T_PERFECT, mistimed = !frame && ae > T_NEUTRAL;
-  // the Power shot only connects with Perfect or Neutral timing: early or late, you don't touch the ball
-  if (!drop && player.focus >= 3 && playerSpecial() === 'power' && (mistimed || frame)) {
+  // a Power shot only connects with Perfect or Neutral timing, both when you fire it and when it comes at you:
+  // early or late, you don't touch the ball
+  const ownPower = !drop && player.focus >= 3 && playerSpecial() === 'power';
+  const incomingPower = !!(ball.fx && ball.fx.k === 'power');
+  if ((ownPower || incomingPower) && (mistimed || frame)) {
     player.focus = 0; renderFocus();
     if (S.practice) practiceEvent('returns');
     showTag(e > 0 ? 'Late' : 'Early', false);
