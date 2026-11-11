@@ -12,7 +12,8 @@ Open `index.html` in a phone browser. It's a single file with no build step and 
 - **Power:** a fast flick hits hard and deep, and a slow push hits soft and short. Swipe down for a drop shot. A plain tap hits a safe shot into the open court.
 - **Timing:** four tiers. **Perfect** (close to the ideal moment) hits harder and deeper. **Neutral** is a normal shot with no pop-up. **Early or late** gives a weaker, shallower ball that pulls across your body, and if the opponent hits it cleanly it comes back harder. Way off is a **mishit**.
 - **Rallies:** the longer a rally runs, the faster the ball moves, so long rallies get harder to keep up with. A **drop shot** takes that speed back off.
-- **Serve:** tap to toss, then tap again at the top of the toss. Two faults lose the point.
+- **Serve:** the ball tosses itself. Tap at the top of the toss, and swipe toward the sideline to serve wide or toward the middle to serve down the T. Two faults lose the point.
+- **Close calls:** when a ball is going to land close to a line, a dashed cyan ring marks where, for the last moment before it bounces. Balls clearly in or out don't get a ring.
 
 On a computer, use the arrow keys to move, press Space to swing (and to serve), hold an arrow while swinging to aim at a corner, hold Space longer for a drop shot and P to pause.
 
