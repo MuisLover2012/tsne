@@ -463,7 +463,7 @@ body {
       <dt>Move</dt><dd>Keep one finger on the screen and drag to move.</dd>
       <dt>Swing</dt><dd>Swipe your other thumb toward where the ball should go, as the ball arrives. Up-left goes left, straight up goes down the middle, up-right goes right.</dd>
       <dt>Power</dt><dd>A fast swipe hits hard and deep, a slow one softer. Swipe down for a drop shot. A plain tap aims at the open court.</dd>
-      <dt>Timing</dt><dd>Perfect timing lands on your target. Early or late swings drift off it.</dd>
+      <dt>Timing</dt><dd>Four tiers. Perfect: a harder, deeper ball. Neutral: a normal shot, no pop-up. Early or late: a weaker, shallower ball, and if they hit it cleanly it comes back harder. Way off: a mishit.</dd>
       <dt>Serve</dt><dd>Tap to toss, then tap again at the top. Two faults lose the point.</dd>
     </dl>
     </details>
@@ -1211,10 +1211,18 @@ function isIn(x, y, side) {
   if (Math.abs(x) > HW + 0.05) return false;
   return side === 'c' ? (y >= NET_Y && y <= L + 0.05) : (y <= NET_Y && y >= -0.05);
 }
-function launch(who, tx, ty, pace, clear) {
+// Rallies speed up the longer they run; a drop shot takes that speed back off.
+const T_PERFECT = 0.2, T_NEUTRAL = 0.5, T_LATE = 0.9;   // timing: Perfect, Neutral, Early/Late, then Mishit
+const TEMPO_DROP = 8, SPECIAL_SHARP = 0.6;               // a drop cuts this many shots of tempo; a special's timing window is 40% narrower
+const SPECIAL_HARD = { power: 0.06, meteor: 0.08, frost: 0.08, fire: 0.1, lightning: 0.09, mirage: 0.08, hurricane: 0.09, phantom: 0.1 };
+const tempoMul = n => 1 + clamp((n - 4) * 0.025, 0, 0.6);
+function dropCut() { if ((S.rally || 0) > 0) S.tempoOff = Math.min(S.rally, (S.tempoOff || 0) + TEMPO_DROP); }
+function launch(who, tx, ty, pace, clear, o = {}) {
+  if (o.slow) dropCut(); else pace *= tempoMul((S.rally || 0) - (S.tempoOff || 0));
   const v = shoot(ball.x, ball.y, ball.z, tx, ty, pace * (S.mod.fast || 1), clear);
   ball.vx = v.vx; ball.vy = v.vy; ball.vz = v.vz;
-  ball.lastHitter = who; ball.bounces = 0; ball.rolling = false; ball.mark = null; ball.reach = null; ball.frozen = 0; ball.froze = false; ball.power = false; ball.fx = null;
+  ball.lastHitter = who; ball.bounces = 0; ball.rolling = false; ball.mark = null; ball.reach = null; ball.frozen = 0; ball.froze = false;
+  ball.fx = o.fx || null; ball.power = !!o.fx; ball.weak = !!o.weak;
   ball.land = predictLand();
   ball.landOut = !isIn(ball.land.x, ball.land.y, who === 'p' ? 'c' : 'p');
   if (who === 'p') { cpu.plan = null; cpu.react = D().react; }
@@ -1222,7 +1230,7 @@ function launch(who, tx, ty, pace, clear) {
   renderRally();
   sfx.hit(who === 'p');
   if (who === 'p') buzz(12);
-  if (S.online && who === 'p') netShot();
+  if (S.online && who === 'p') netShot(!!o.slow);
 }
 function planIntercept() {
   if (ball.landOut && ball.bounces === 0) return { letGo: true };
@@ -1246,7 +1254,7 @@ function planIntercept() {
     if (b.n === 1 && b.z > zMin && b.z < 2.4) { best = { x: b.x, y: b.y }; if (b.y >= home) break; }
   }
   if (!best) return { letGo: true };
-  const m = D().miss * (ball.power ? 2.6 : 1);
+  const m = D().miss;
   return { x: best.x + rand(-m, m), y: clamp(best.y + 0.3, NET_Y + 1.2, L + 3) };
 }
 
@@ -1254,7 +1262,7 @@ function planIntercept() {
 // Every story boss has a signature shot. Beat them to learn it and pick one in Upgrades: a full Focus meter
 // fires it. Opponents charge their own meter as they hit, glow when it's full and shout the name as they fire.
 const SPECIALS = {
-  power:     { name: 'Power shot', owner: null,     col: ['w', 's', 'o'], desc: 'A heavy ball to the deep corner. It knocks their racket back: they often miss, and any return sits up short for you.' },
+  power:     { name: 'Power shot', owner: null,     col: ['w', 's', 'o'], desc: 'A fast, heavy drive to the deep corner. It is hard to return cleanly, because the timing window is tighter.' },
   meteor:    { name: 'Meteor',     owner: 'marla',  col: ['h', 'o', 's'], desc: 'A sky-high lob that crashes down and kicks up over their head.',
                counter: 'When it goes up, run back. Way back.' },
   frost:     { name: 'Frostbite',  owner: 'rex1',   col: ['y', 'w', 'c'], desc: 'Skids off the court, low and fast, after it bounces.',
@@ -1281,41 +1289,42 @@ function jink(b, fx) {
   const t = (fx.real.y - b.y) / b.vy;
   if (t > 0.05) b.vx = (fx.real.x - b.x - 0.5 * (S.mod.wind || 0) * t * t) / t;
 }
-function fireSpecial(who, kind, tx, ty, pace, clear) {
+function fireSpecial(who, kind, tx, ty, pace, clear, weak = false) {
   const fx = { k: kind };
   const toC = who === 'p';
   const deepY = m => toC ? L - m : m;                    // m metres inside the far baseline
   const boost = toC && S.career && hasPerk('theo') ? 1.08 : 1;
   const side = x => Math.abs(x) > 0.6 ? Math.sign(x) : (Math.random() < 0.5 ? -1 : 1);
-  let react = 0.15;
   tx = clamp(tx, -(HW - 0.4), HW - 0.4);
-  if (kind === 'meteor') { ty = deepY(rand(0.9, 1.9)); pace = 8; clear = 9; tx *= 0.8; fx.bz = 1.05; fx.bf = 1.35; react = 0.05; }
+  if (kind === 'meteor') { ty = deepY(rand(0.9, 1.9)); pace = 8; clear = 9; tx *= 0.8; fx.bz = 1.05; fx.bf = 1.35; }
   else {
     ty = toC ? clamp(ty, NET_Y + 5, L - 0.4) : clamp(ty, 0.4, NET_Y - 5);
     pace = Math.max(pace, 16);
-    if (kind === 'fire') { pace = Math.min(34, pace * 1.45 + 2) * boost; clear = 0.12; react = 0.25; }
+    if (kind === 'fire') { pace = Math.min(34, pace * 1.45 + 2) * boost; clear = 0.12; }
     else if (kind === 'frost') { pace = Math.min(28, pace * 1.15 + 1) * boost; clear = 0.12; fx.bz = 0.42; fx.bf = 1.15; }
-    else if (kind === 'lightning') { pace = Math.min(28, pace * 1.1 + 1) * boost; clear = 0.2; const sd = side(tx); fx.real = { x: sd * (HW - 0.8), y: ty }; tx = -sd * 1.2; fx.bx = 0.3; react = 0.1; }
-    else if (kind === 'hurricane') { pace = Math.min(25, pace) * boost; clear = 0.4; const sd = side(tx); tx = sd * (HW - 0.8); fx.ax = -sd * 11; react = 0.1; }
-    else if (kind === 'phantom') { pace = Math.min(28, pace * 1.1 + 1) * boost; clear = 0.2; fx.hide = true; react = 0.35; }
-    else if (kind === 'mirage') { pace = Math.min(28, pace * 1.1 + 1) * boost; clear = 0.2; fx.decoys = true; react = 0.3; }
-    else { pace = Math.min(27, pace * (boost > 1 ? 1.3 : 1.2) + 2); clear = Math.min(clear, 0.15); ty = toC ? L - rand(1.2, 2.4) : rand(1.2, 2.4); tx = side(tx) * Math.max(Math.abs(tx), HW - 1.8); react = 0.05; }
+    else if (kind === 'lightning') { pace = Math.min(28, pace * 1.1 + 1) * boost; clear = 0.2; const sd = side(tx); fx.real = { x: sd * (HW - 0.8), y: ty }; tx = -sd * 1.2; fx.bx = 0.3; }
+    else if (kind === 'hurricane') { pace = Math.min(25, pace) * boost; clear = 0.4; const sd = side(tx); tx = sd * (HW - 0.8); fx.ax = -sd * 11; }
+    else if (kind === 'phantom') { pace = Math.min(28, pace * 1.1 + 1) * boost; clear = 0.2; fx.hide = true; }
+    else if (kind === 'mirage') { pace = Math.min(28, pace * 1.1 + 1) * boost; clear = 0.2; fx.decoys = true; }
+    else { pace = Math.min(27, pace * (boost > 1 ? 1.3 : 1.2) + 2); clear = Math.min(clear, 0.15); ty = toC ? L - rand(1.2, 2.4) : rand(1.2, 2.4); tx = side(tx) * Math.max(Math.abs(tx), HW - 1.8); }
   }
   let aimX = tx;
   if (fx.ax) for (let i = 0; i < 3; i++) {                // aim wide so the curve bends it back onto the target
     const v = shoot(ball.x, ball.y, ball.z, aimX, ty, pace * (S.mod.fast || 1), clear), t = (ty - ball.y) / v.vy;
     aimX = tx - 0.5 * fx.ax * t * t;
   }
-  launch(who, aimX, ty, pace, clear);
-  ball.power = true; ball.fx = fx; fx.y0 = ball.y;
+  fx.y0 = ball.y;
+  launch(who, aimX, ty, pace, clear, { fx, weak });
   ball.land = fx.real ? { x: fx.real.x, y: fx.real.y } : predictLand();
   ball.landOut = !isIn(ball.land.x, ball.land.y, toC ? 'c' : 'p');
-  if (fx.decoys) fx.dec = [-1, 1].map(s => ({ x: ball.x, y: ball.y, z: ball.z, vx: ball.vx + s * rand(2.6, 4), vy: ball.vy * rand(0.92, 1.05), vz: ball.vz * rand(0.9, 1.1), trail: [], on: true }));
-  if (toC) cpu.react += react;
+  if (fx.decoys) makeDecoys(fx);
   sfx.special(kind);
   burst(ball.x, ball.y, ball.z, 14, SPECIALS[kind].col, 1.6);
   S.hitstop = kind === 'power' ? 0.16 : 0.12; S.shake = kind === 'fire' || kind === 'meteor' || kind === 'power' ? 1.8 : 1.2;
   S.wave = { x: ball.x, y: ball.y, t: 0, c: SPECIALS[kind].col[0] };
+}
+function makeDecoys(fx) {
+  fx.dec = [-1, 1].map(s => ({ x: ball.x, y: ball.y, z: ball.z, vx: ball.vx + s * rand(2.6, 4), vy: ball.vy * rand(0.92, 1.05), vz: ball.vz * rand(0.9, 1.1), trail: [], on: true }));
 }
 function cpuShout(kind) {
   const elb = $('bubble');
@@ -1529,7 +1538,7 @@ function setupPoint() {
   player.tx = player.x; player.ty = player.y; cpu.tx = cpu.x; cpu.ty = cpu.y;
   player.swing = cpu.swing = 0; player.swingT = -1; player.cool = 0; cpu.plan = null; cpu.home = L + 0.8;
   if (player.charge && player.charge.id === 'key') player.charge = null;
-  S.state = 'serve'; S.toss = -1; S.timer = M.server === 1 ? 1.2 : 0; S.faultOnly = false; S.rally = 0;
+  S.state = 'serve'; S.toss = -1; S.timer = M.server === 1 ? 1.2 : 0; S.faultOnly = false; S.rally = 0; S.tempoOff = 0;
   renderRally(); renderFocus(); S.bigPoint = ''; bigPointCall();
   resetDragOrigin();
   holdBall();
@@ -1607,41 +1616,51 @@ function fault() {
   fetchBall();
 }
 function playerHit(dx, e) {
-  // e: -1 swung early ... 0 perfect ... +1 swung late. Power comes from how quickly you lifted the tap.
+  // e: -1 swung early ... 0 perfect ... +1 swung late. Timing sorts the shot into tiers:
+  // Perfect (|e| <= 0.2): harder and deeper. Neutral (<= 0.5): a normal shot with no pop-up.
+  // Early/Late (<= 0.9): a weaker, shallower ball that pulls across your body. Beyond that, a mishit.
   const shot = player.shot || { dir: null, power: powerFor(player.hold || 0.15), drop: (player.hold || 0) >= TOUCH_HOLD };
   const power = shot.power, drop = shot.drop;
-  const q = 1 - Math.abs(e);
+  const ae = Math.abs(e), q = 1 - ae;
   const side = dx >= 0 ? 1 : -1;
+  const incomingWeak = !!ball.weak;
+  const frame = ae > T_LATE && Math.random() < 0.25;
+  const perfect = !frame && ae <= T_PERFECT, mistimed = !frame && ae > T_NEUTRAL;
   player.side = side; ball.reach = null; player.connected = true;
-  let tx, ty, pace, clear = 0.25, tag;
-  if (Math.abs(e) > 0.9 && Math.random() < 0.25) {          // framed it
+  let tx, ty, pace, clear = 0.25, tag = null;
+  const pull = side * e * (mistimed ? 1.8 : 0.9);
+  if (frame) {
     tag = 'Mishit';
     tx = side * rand(1.5, HW + 2.5); pace = rand(8, 12);
     if (Math.random() < 0.5) ty = rand(L + 0.3, L + 3);
     else { ty = NET_Y + 0.3; clear = -99; }
   } else {
-    tag = q > 0.6 ? (power > 0.75 ? 'Strong' : 'Perfect') : e > 0 ? 'Late' : 'Early';
+    tag = perfect ? (power > 0.75 ? 'Strong' : 'Perfect') : mistimed ? (e > 0 ? 'Late' : 'Early') : null;
     // good timing places the ball into the open court; early pulls it across your body, late pushes it the other way
     if (shot.dir != null) {
       // you chose the direction; timing decides how close you get to it
-      tx = shot.dir * (HW - 0.35) + side * e * 0.9 + rand(-1, 1) * (0.2 + 0.9 * (1 - q));
+      tx = shot.dir * (HW - 0.35) + pull + rand(-1, 1) * (0.2 + 0.9 * (1 - q));
     } else {
       const open = cpu.x > 0.4 ? -1 : cpu.x < -0.4 ? 1 : (Math.random() < 0.5 ? -1 : 1);
-      tx = open * (0.4 + 2.8 * q * q) + side * e * 2.0 + rand(-1, 1) * (0.3 + 0.9 * (1 - q));
+      tx = open * (0.4 + 2.8 * q * q) + pull * 2.2 + rand(-1, 1) * (0.3 + 0.9 * (1 - q));
     }
     if (drop) {
-      ty = NET_Y + rand(1.6, 3.2); pace = 9; tx *= 0.7; clear = 0.15; if (q > 0.6) tag = 'Drop shot';
+      ty = NET_Y + rand(1.6, 3.2); pace = 9; tx *= 0.7; clear = 0.15; if (perfect) tag = 'Drop shot';
     } else if (power < 0.55 && cpu.y < NET_Y + 5.5 && player.y < NET_Y - 4.5) {     // they're at the net: float it over them
-      ty = L - rand(0.8, 3) + (1 - q) * rand(-1, 2); pace = 10; clear = 3.2; tx *= 0.6; tag = q > 0.6 ? 'Lob' : tag;
+      ty = L - rand(0.8, 3) + (1 - q) * rand(-1, 2); pace = 10; clear = 3.2; tx *= 0.6; tag = perfect ? 'Lob' : tag;
     } else if (player.y > NET_Y - 4.5 && ball.z > 1.6) {
-      ty = rand(L - 7, L - 3); pace = (16 + 10 * power) * PS.power; clear = 0.1; if (q > 0.6) tag = 'Smash';
+      ty = rand(L - 7, L - 3); pace = (16 + 10 * power) * PS.power; clear = 0.1; if (perfect) tag = 'Smash';
     } else {
       ty = L - 2.6 - (1 - power) * 4 + rand(-1, 1) * (0.7 + 0.8 * (1 - q)) + power * 0.4;
       pace = (11 + 11 * power * (0.6 + 0.4 * q)) * PS.power + rand(-0.8, 0.8);
     }
+    // the four tiers, felt in the ball
+    if (perfect) { pace *= 1.18; ty = Math.min(L - 0.4, ty + 0.8); clear *= 0.8; }
+    if (mistimed) { pace *= 0.72; ty = Math.max(NET_Y + 2.5, ty - 4); clear = Math.max(clear, 0.5); }
+    if (incomingWeak && !mistimed) pace *= 1.3;   // their mistimed ball came back clean, so it comes back harder
   }
   ball.isServe = false;
-  if (MS) { if (q > 0.6 && tag !== 'Mishit') MS.perfects++; MS.lastKind = drop ? 'drop' : 'drive'; }
+  if (MS) { if (perfect) MS.perfects++; MS.lastKind = drop ? 'drop' : 'drive'; }
   // Focus: chain Perfects to charge your special shot
   let pshot = false, spk = null;
   if (tag !== 'Mishit' && player.focus >= 3 && !drop) {
@@ -1649,28 +1668,31 @@ function playerHit(dx, e) {
     player.focus = 0;
     if (MS) MS.powers = (MS.powers || 0) + 1;
   } else if (tag === 'Mishit') player.focus = 0;
-  else if (q > 0.6) { player.focus = Math.min(3, player.focus + 1); if (player.focus === 3) { tone(440, 0.08, 0.06); tone(660, 0.08, 0.06, 'square', 0.08); tone(990, 0.12, 0.06, 'square', 0.16); } }
-  else player.focus = Math.max(0, player.focus - 1);
+  else if (perfect) { player.focus = Math.min(3, player.focus + 1); if (player.focus === 3) { tone(440, 0.08, 0.06); tone(660, 0.08, 0.06, 'square', 0.08); tone(990, 0.12, 0.06, 'square', 0.16); } }
+  else if (mistimed) player.focus = Math.max(0, player.focus - 1);
   renderFocus();
-  if (S.practice) { practiceEvent('returns'); if (q > 0.6 && tag !== 'Mishit') practiceEvent('perfects'); if (drop && tag !== 'Mishit') practiceEvent('drops'); if (pshot) practiceEvent('powers'); }
-  if (pshot) { fireSpecial('p', spk, tx, ty, pace, clear); roar(0.9); }
-  else launch('p', clamp(tx, -(HW + 2.5), HW + 2.5), ty, pace, clear);
-  if (!pshot && q > 0.6) { S.hitstop = 0.05; burst(ball.x, ball.y, ball.z, 4, ['y', 'w'], 0.8); }
-  showTag(tag, tag === 'Perfect' || tag === 'Strong' || tag === 'Smash' || tag === 'Drop shot' || pshot || tag === 'Lob');
+  if (S.practice) { practiceEvent('returns'); if (perfect) practiceEvent('perfects'); if (drop && tag !== 'Mishit') practiceEvent('drops'); if (pshot) practiceEvent('powers'); }
+  const weak = mistimed || frame;
+  if (pshot) { fireSpecial('p', spk, tx, ty, pace, clear, weak); roar(0.9); }
+  else launch('p', clamp(tx, -(HW + 2.5), HW + 2.5), ty, pace, clear, { slow: drop, weak });
+  if (!pshot && perfect) { S.hitstop = 0.05; burst(ball.x, ball.y, ball.z, 4, ['y', 'w'], 0.8); }
+  if (tag) showTag(tag, tag === 'Perfect' || tag === 'Strong' || tag === 'Smash' || tag === 'Drop shot' || pshot || tag === 'Lob');
   S.tips++;
 }
 function cpuHit(dx) {
   const d = D();
   cpu.side = dx <= 0 ? -1 : 1; cpu.swing = 1;
+  const incomingWeak = !!ball.weak, incoming = ball.fx ? ball.fx.k : null;
   // pressure: stretched wide, made to run, or facing pace makes errors and short replies more likely
   const spd = Math.hypot(ball.vx, ball.vy);
   const stretch = Math.min(1, Math.abs(dx) / C_REACH);
   const fatigue = Math.max(0, (S.rally || 0) - 6) * 0.015;          // long rallies wear everyone down
-  const pressure = 0.1 * stretch * stretch + Math.max(0, spd - 16) * 0.012 + Math.max(0, (cpu.runDist || 0) - 3) * 0.03 + (ball.power ? 0.14 : 0) + fatigue;
+  const pressure = 0.1 * stretch * stretch + Math.max(0, spd - 16) * 0.012 + Math.max(0, (cpu.runDist || 0) - 3) * 0.03 + fatigue;
+  // a special is harder to read: the same narrower timing window you face, as an error chance
+  const hard = incoming ? (SPECIAL_HARD[incoming] || 0) : 0;
   ball.isServe = false;
-  const heavy = !!(ball.fx && ball.fx.k === 'power');   // a Power shot knocks the racket back
-  if (heavy) { cpu.cheer = 0; S.shake = Math.max(S.shake || 0, 0.8); burst(ball.x, ball.y, ball.z, 10, ['w', 's', 'o'], 1.2); }
-  if (Math.random() < d.err + pressure + (heavy ? 0.12 : 0)) {
+  if (incoming === 'power') { cpu.cheer = 0; S.shake = Math.max(S.shake || 0, 0.8); burst(ball.x, ball.y, ball.z, 10, ['w', 's', 'o'], 1.2); }
+  if (Math.random() < d.err + pressure + hard) {
     if (Math.random() < 0.45) { launch('c', rand(-HW + 0.5, HW - 0.5), NET_Y - 0.3, d.pace, -99); return; }
     const wide = Math.random() < 0.5;
     const tx = wide ? (Math.random() < 0.5 ? -1 : 1) * rand(HW + 0.25, HW + 1.3) : rand(-HW + 0.5, HW - 0.5);
@@ -1679,7 +1701,8 @@ function cpuHit(dx) {
     return;
   }
   let tx, ty = d.deep ? rand(0.5, 3.6) : rand(0.7, 5.6), pace = d.pace * rand(0.9, 1.08), clear = 0.3, kind = 'drive';
-  const weak = heavy || Math.random() < pressure * 3;          // a defensive reply that sits up for you
+  if (incomingWeak) pace *= 1.5;                      // their mistimed ball came back clean: hit it harder
+  const weak = Math.random() < pressure * 3;          // a defensive reply that sits up for you
   if (weak) { ty = rand(4.5, NET_Y - 2.5); pace *= 0.78; }
   if (Math.random() < d.aim) tx = (player.x > 0 ? -1 : 1) * rand(1.4, HW - 0.4);
   else tx = rand(-(HW - 0.6), HW - 0.6);
@@ -1696,7 +1719,7 @@ function cpuHit(dx) {
     }
     sp.n = Math.min(sp.need, sp.n + 1); renderOppSp();
   }
-  launch('c', tx, ty, pace, clear);
+  launch('c', tx, ty, pace, clear, { slow: kind === 'drop' });
   // net rushers follow a drive in; everyone else recovers to the baseline
   cpu.home = kind === 'drive' && Math.random() < d.net ? NET_Y + rand(2.4, 3.4) : L + 0.8;
 }
@@ -1771,7 +1794,7 @@ function tryHit(who, prevY) {
   if (Math.abs(dx) > (who === 'p' ? PS.reach : C_REACH)) return;
   if (ball.z > (who === 'p' ? 3.1 : 2.7)) return;
   if (who === 'c') { cpuHit(dx); return; }
-  if (player.swingT >= 0 && player.swingT <= SWING_WIN) playerHit(dx, clamp((SWING_IDEAL - player.swingT) / PS.touch, -1, 1));
+  if (player.swingT >= 0 && player.swingT <= SWING_WIN) playerHit(dx, clamp((SWING_IDEAL - player.swingT) / (PS.touch * (ball.fx ? SPECIAL_SHARP : 1)), -1, 1));
   else ball.reach = { t: S.clock, dx };                         // in reach but not swinging yet
 }
 function physics(dt) {
@@ -4011,10 +4034,29 @@ function netTick() {
   else if (S.clock - NET.goneAt > 6) endOnline('Your friend left the match');
 }
 function netSwing() { if (S.online) { NET.swN++; netSend({ sw: NET.swN, sd: player.side }); } }
-function netShot() {
+function packFx(f) {
+  const o = { k: f.k };
+  if (f.real) o.real = { x: r3(f.real.x), y: r3(f.real.y) };
+  if (f.ax) o.ax = r3(f.ax);
+  if (f.bz) o.bz = f.bz; if (f.bf) o.bf = f.bf; if (f.bx) o.bx = f.bx;
+  if (f.hide) o.hide = 1; if (f.decoys) o.decoys = 1;
+  return o;
+}
+// the friend's phone sees the court from the other side, so x and y are mirrored, as with the ball itself
+function unpackFx(f) {
+  if (!f || typeof f !== 'object' || !SPECIALS[f.k]) return null;
+  const o = { k: String(f.k), y0: ball.y };
+  if (f.real && num(f.real.x) && num(f.real.y)) o.real = { x: clamp(-f.real.x, -HW, HW), y: clamp(L - f.real.y, -10, L + 10) };
+  if (num(f.ax)) o.ax = clamp(-f.ax, -40, 40);
+  if (num(f.bz)) o.bz = clamp(f.bz, 0, 2); if (num(f.bf)) o.bf = clamp(f.bf, 0, 2); if (num(f.bx)) o.bx = clamp(f.bx, 0, 2);
+  if (f.hide) o.hide = true; if (f.decoys) o.decoys = true;
+  return o;
+}
+function netShot(slow) {
   NET.shotN++;
   netSend({ shot: { ep: NET.ep, n: NET.shotN, x: r3(ball.x), y: r3(ball.y), z: r3(ball.z),
-                    vx: r3(ball.vx), vy: r3(ball.vy), vz: r3(ball.vz), srv: !!ball.isServe } });
+                    vx: r3(ball.vx), vy: r3(ball.vy), vz: r3(ball.vz), srv: !!ball.isServe,
+                    dr: slow ? 1 : 0, wk: ball.weak ? 1 : 0, fx: ball.fx ? packFx(ball.fx) : null } });
 }
 function netPoint(kind, winner, reason) {
   NET.ptN++;
@@ -4050,7 +4092,11 @@ function applyShot(sh) {
                         vx: clamp(-sh.vx, -40, 40), vy: clamp(-sh.vy, -40, 40), vz: clamp(sh.vz, -40, 40),
                         lastHitter: 'c', bounces: 0, rolling: false, dead: false, reach: null, mark: null,
                         frozen: 0, froze: false, isServe: !!sh.srv, trail: [] });
-  ball.land = predictLand();
+  ball.weak = !!sh.wk;
+  ball.fx = unpackFx(sh.fx); ball.power = !!ball.fx;
+  if (ball.fx && ball.fx.decoys) makeDecoys(ball.fx);
+  if (sh.dr) dropCut();
+  ball.land = ball.fx && ball.fx.real ? { x: ball.fx.real.x, y: ball.fx.real.y } : predictLand();
   ball.landOut = !isIn(ball.land.x, ball.land.y, 'p');
   S.state = 'rally'; S.toss = -1;
   S.rally = (S.rally || 0) + 1; renderRally();

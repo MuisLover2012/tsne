@@ -10,7 +10,8 @@ Open `index.html` in a phone browser. It's a single file with no build step and 
 - **Swing:** swipe your other thumb toward where the ball should go, just as the ball arrives. The swipe is the swing, so its timing is your timing.
 - **Aim:** the swipe's angle sets the direction. Straight up goes down the middle; about 45° left or right goes into that corner. A flashing ring shows where you aimed.
 - **Power:** a fast flick hits hard and deep, and a slow push hits soft and short. Swipe down for a drop shot. A plain tap hits a safe shot into the open court.
-- **Timing:** perfect timing lands on your target. Early or late swings drift off it, and swinging far off can mishit.
+- **Timing:** four tiers. **Perfect** (close to the ideal moment) hits harder and deeper. **Neutral** is a normal shot with no pop-up. **Early or late** gives a weaker, shallower ball that pulls across your body, and if the opponent hits it cleanly it comes back harder. Way off is a **mishit**.
+- **Rallies:** the longer a rally runs, the faster the ball moves, so long rallies get harder to keep up with. A **drop shot** takes that speed back off.
 - **Serve:** tap to toss, then tap again at the top of the toss. Two faults lose the point.
 
 On a computer, use the arrow keys to move, press Space to swing (and to serve), hold an arrow while swinging to aim at a corner, hold Space longer for a drop shot and P to pause.
@@ -59,7 +60,7 @@ The loop:
 - **Stars:** every match has three, for winning, a personal goal (like "Win a game on his serve" or "Hit 8 Perfect shots") and winning by two games or more.
 - **Coins:** every match pays coins, even a loss. Spend them on **Upgrades** (speed, reach, power, touch and serve) or in the **Shop** (caps, shirts and rackets).
 - **World ranking:** wins earn ranking points, from #900 up to #1.
-- **Focus:** three Perfect shots in a row fill the Focus meter, and your next swing fires your **special shot**. You start with the **Power shot**: a heavy, white-hot ball to the deep corner that knocks their racket back, so they often miss and any return sits up short for you.
+- **Focus:** three Perfect shots in a row fill the Focus meter, and your next swing fires your **special shot**. You start with the **Power shot**: a fast, heavy drive to the deep corner. It's hard to return cleanly, because its timing window is tighter.
 - **Special shots:** every story boss has a signature shot, and beating them teaches it to you. Pick the one you want in Upgrades.
   - **Meteor** (Marla Stone): a sky-high lob that crashes down and kicks up over their head.
   - **Frostbite** (Rex Vantage, County): skids off the court low and fast.
