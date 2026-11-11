@@ -60,7 +60,7 @@ The loop:
 - **Stars:** every match has three, for winning, a personal goal (like "Win a game on his serve" or "Hit 8 Perfect shots") and winning by two games or more.
 - **Coins:** every match pays coins, even a loss. Spend them on **Upgrades** (speed, reach, power, touch and serve) or in the **Shop** (caps, shirts and rackets).
 - **World ranking:** wins earn ranking points, from #900 up to #1.
-- **Focus:** three Perfect shots in a row fill the Focus meter, and your next swing fires your **special shot**. You start with the **Power shot**: a fast, heavy drive to the deep corner. It's hard to return cleanly, because its timing window is tighter.
+- **Focus:** three Perfect shots in a row fill the Focus meter, and your next swing fires your **special shot**. You start with the **Power shot**: a fast, heavy drive to the deep corner. Only **Perfect** or **Neutral** timing connects. Early or late, you miss it and the meter resets.
 - **Special shots:** every story boss has a signature shot, and beating them teaches it to you. Pick the one you want in Upgrades.
   - **Meteor** (Marla Stone): a sky-high lob that crashes down and kicks up over their head.
   - **Frostbite** (Rex Vantage, County): skids off the court low and fast.
